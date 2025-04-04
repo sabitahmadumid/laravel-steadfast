@@ -22,9 +22,4 @@ return [
         'enabled' => env('STEADFAST_LOGGING', true),
         'log_level' => env('STEADFAST_LOG_LEVEL', 'error'),
     ],
-
-    'validation' => [
-        'invoice_table' => env('STEADFAST_INVOICE_TABLE', 'orders'),
-        'invoice_column' => env('STEADFAST_INVOICE_COLUMN', 'invoice'),
-    ],
 ];
