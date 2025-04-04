@@ -1,20 +1,22 @@
 # Unofficial Laravel SDK wrapper for SteadFast courier with Bulk order creation using queue
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/sabitahmad/laravel-steadfast.svg?style=flat-square)](https://packagist.org/packages/sabitahmad/laravel-steadfast)
-[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/sabitahmad/laravel-steadfast/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/sabitahmad/laravel-steadfast/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/sabitahmad/laravel-steadfast/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/sabitahmad/laravel-steadfast/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/sabitahmad/laravel-steadfast.svg?style=flat-square)](https://packagist.org/packages/sabitahmad/laravel-steadfast)
 
-This is where your description should go. Limit it to a paragraph or two. Consider adding a small example.
+A feature-rich Laravel package designed to seamlessly integrate with Steadfast Courier's delivery services API.
+## Key Features
 
-## Support us
+- 📦 Individual order creation with validation
+- 🔀 Bulk order processing with queue management
+- 🔍 Real-time shipment status tracking
+- 💵 Account balance verification
+- 📑 Detailed activity logs
+- 🔁 Built-in retry mechanism
+- ⚙️ Customizable batch processing
+- 🛡️ Type-safe data transfer objects
 
-[<img src="https://github-ads.s3.eu-central-1.amazonaws.com/laravel-steadfast.jpg?t=1" width="419px" />](https://spatie.be/github-ad-click/laravel-steadfast)
 
-We invest a lot of resources into creating [best in class open source packages](https://spatie.be/open-source). You can support us by [buying one of our paid products](https://spatie.be/open-source/support-us).
-
-We highly appreciate you sending us a postcard from your hometown, mentioning which of our package(s) you are using. You'll find our address on [our contact page](https://spatie.be/about-us). We publish all received postcards on [our virtual postcard wall](https://spatie.be/open-source/postcards).
-
+## Getting Started
 ## Installation
 
 You can install the package via composer:
@@ -43,18 +45,86 @@ return [
 ];
 ```
 
-Optionally, you can publish the views using
+# Environment Setup
 
-```bash
-php artisan vendor:publish --tag="laravel-steadfast-views"
+```dotenv
+STEADFAST_API_KEY=your_api_key_here
+STEADFAST_SECRET_KEY=your_secret_key_here
+STEADFAST_BULK_QUEUE=true
+STEADFAST_LOGGING=true
 ```
 
 ## Usage
 
+### Implementation Guide
+
+**`Create single order`**
+
 ```php
-$steadFast = new SabitAhmad\SteadFast();
-echo $steadFast->echoPhrase('Hello, SabitAhmad!');
+
+$deliveryOrder = new OrderRequest(
+    invoice: 'INV-2023-001',
+    recipient_name: 'Recipient Name',
+    recipient_phone: '01234567890',
+    recipient_address: 'Delivery Address',
+    cod_amount: 2000.00,
+    note: 'Special instructions'
+);
+
+$response = Steadfast::createOrder($deliveryOrder);
+
 ```
+
+`Bulk Order Processing`
+
+```php
+$orders = [
+    new OrderRequest([
+        invoice: 'INV-2023-001',
+        recipient_name: 'Recipient Name',
+        recipient_phone: '01234567890',
+        recipient_address: 'Delivery Address',
+        cod_amount: 2000.00,
+        note: 'Special instructions'
+    ]),
+    new OrderRequest([
+        invoice: 'INV-2023-002',
+        recipient_name: 'Another Recipient',
+        recipient_phone: '09876543210',
+        recipient_address: 'Another Address',
+        cod_amount: 1500.00,
+        note: 'Additional instructions'
+    ]),
+    // ...
+];
+
+    // Process via queue (default)
+    Steadfast::bulkCreate($orders);
+
+    // Process immediately
+    $response = Steadfast::bulkCreate($orders, false);
+```
+
+`Checking Status`
+
+```php
+// By tracking code
+$status = Steadfast::checkStatusByTrackingCode('TRACK123');
+
+// By invoice number
+$status = Steadfast::checkStatusByInvoice('ORDER-123');
+
+// By consignment ID
+$status = Steadfast::checkStatusByConsignmentId(1424107);
+```
+
+`Checking Balance`
+
+```php
+$balance = Steadfast::getBalance();
+```
+
+
 
 ## Testing
 
@@ -66,9 +136,6 @@ composer test
 
 Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
 
-## Contributing
-
-Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
 
 ## Security Vulnerabilities
 
