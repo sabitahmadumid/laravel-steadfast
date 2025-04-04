@@ -4,7 +4,6 @@ namespace SabitAhmad\SteadFast\DTO;
 
 class OrderRequest
 {
-
     public function __construct(
         public string $invoice,
         public string $recipient_name,
