@@ -42,6 +42,26 @@ This is the contents of the published config file:
 
 ```php
 return [
+    'api_key' => env('STEADFAST_API_KEY'),
+    'secret_key' => env('STEADFAST_SECRET_KEY'),
+    'base_url' => env('STEADFAST_BASE_URL', 'https://portal.packzy.com/api/v1'),
+
+    'bulk' => [
+        'queue' => env('STEADFAST_BULK_QUEUE', true),
+        'chunk_size' => 500,
+        'queue_name' => env('STEADFAST_QUEUE_NAME', 'default'),
+    ],
+
+    'timeout' => 30,
+    'retry' => [
+        'times' => 3,
+        'sleep' => 100,
+    ],
+
+    'logging' => [
+        'enabled' => env('STEADFAST_LOGGING', true),
+        'log_level' => env('STEADFAST_LOG_LEVEL', 'error'),
+    ],
 ];
 ```
 
@@ -124,7 +144,40 @@ $status = Steadfast::checkStatusByConsignmentId(1424107);
 $balance = Steadfast::getBalance();
 ```
 
+## Advanced Configuration
+**Queue Settings**
 
+You can customize the queue settings in your `config/queue.php` file. For example, you can set the connection and queue name for the Steadfast bulk order processing:
+
+```php
+// config/queue.php
+'steadfast' => [
+    'driver' => 'database',
+    'table' => 'jobs',
+    'queue' => 'steadfast',
+    'retry_after' => 90,
+],
+```
+**Logging Settings**
+You can customize the logging settings in your `config` file. For example, you can set the log channel for the Steadfast activity logs:
+
+```php
+'logging' => [
+    'enabled' => true,
+    'log_level' => 'error', // debug, info, error
+],
+```
+
+**Exception Handling**
+
+```php
+try {
+    Steadfast::createOrder(...);
+} catch (SteadfastException $e) {
+    // Handle error
+    $errorContext = $e->getContext();
+}
+```
 
 ## Testing
 
