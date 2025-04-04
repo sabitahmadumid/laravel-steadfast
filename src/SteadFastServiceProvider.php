@@ -19,13 +19,13 @@ class SteadFastServiceProvider extends PackageServiceProvider
             ->name('laravel-steadfast')
             ->hasConfigFile()
             ->hasMigration('create_steadfast_logs_table')
-            ->hasInstallCommand(function(InstallCommand $command) {
+            ->hasInstallCommand(function (InstallCommand $command) {
                 $command
                     ->publishConfigFile()
                     ->publishMigrations()
                     ->askToRunMigrations()
                     ->askToStarRepoOnGitHub('sabitahmad/laravel-steadfast')
-                    ->endWith(function(InstallCommand $command) {
+                    ->endWith(function (InstallCommand $command) {
                         $command->info('Have a great day!');
                     });
             });
