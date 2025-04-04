@@ -9,11 +9,9 @@ class SteadfastLog extends Model
     protected $table = 'steadfast_logs';
 
     protected $guarded = [];
+
     protected $casts = [
         'request' => 'array',
         'response' => 'array',
     ];
-
-
-
 }

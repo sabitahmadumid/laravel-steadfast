@@ -11,9 +11,10 @@ use SabitAhmad\SteadFast\Exceptions\SteadfastException;
 use SabitAhmad\SteadFast\Jobs\ProcessBulkOrders;
 use SabitAhmad\SteadFast\Models\SteadfastLog;
 
-class SteadFast {
-
+class SteadFast
+{
     protected array $config;
+
     protected mixed $httpClient;
 
     /**
@@ -62,10 +63,11 @@ class SteadFast {
         } catch (Exception $e) {
             $this->handleException($e, [
                 'order' => $order->toArray(),
-                'endpoint' => '/create_order'
+                'endpoint' => '/create_order',
             ]);
         }
     }
+
     public function getBalance(): array
     {
         try {
@@ -79,7 +81,7 @@ class SteadFast {
                 'request' => [],
                 'response' => $response,
                 'endpoint' => '/get_balance',
-                'status_code' => $response['status'] ?? 500
+                'status_code' => $response['status'] ?? 500,
             ]);
 
             return $this->handleResponse($response);
@@ -87,6 +89,7 @@ class SteadFast {
             $this->handleException($e, ['endpoint' => '/get_balance']);
         }
     }
+
     public function checkStatusByConsignmentId(int $id): array
     {
         return $this->checkStatus($id, 'cid');
@@ -107,12 +110,12 @@ class SteadFast {
         $endpoints = [
             'cid' => '/status_by_cid/',
             'invoice' => '/status_by_invoice/',
-            'tracking' => '/status_by_trackingcode/'
+            'tracking' => '/status_by_trackingcode/',
         ];
 
         try {
             $response = $this->httpClient
-                ->get($endpoints[$type] . $identifier)
+                ->get($endpoints[$type].$identifier)
                 ->throw()
                 ->json();
 
@@ -121,14 +124,14 @@ class SteadFast {
                 'request' => ['identifier' => $identifier],
                 'response' => $response,
                 'endpoint' => $endpoints[$type],
-                'status_code' => $response['status'] ?? 500
+                'status_code' => $response['status'] ?? 500,
             ]);
 
             return $this->handleResponse($response);
         } catch (Exception $e) {
             $this->handleException($e, [
                 'identifier' => $identifier,
-                'type' => $type
+                'type' => $type,
             ]);
         }
     }
@@ -145,7 +148,7 @@ class SteadFast {
             'endpoint' => $context['endpoint'] ?? 'unknown',
             'status_code' => $e->getCode() ?: 500,
             'error' => $e->getMessage(),
-            'context' => $context
+            'context' => $context,
         ];
 
         $this->logRequest($logData);
@@ -162,14 +165,14 @@ class SteadFast {
 
         // Wrap generic exceptions
         throw new SteadfastException(
-            'Service Error: ' . $e->getMessage(),
+            'Service Error: '.$e->getMessage(),
             $e->getCode(),
             $e,
             $context
         );
     }
 
-    public function bulkCreate(array $orders, bool $useQueue = null): BulkOrderResponse
+    public function bulkCreate(array $orders, ?bool $useQueue = null): BulkOrderResponse
     {
         $useQueue = $useQueue ?? $this->config['bulk']['queue'];
         $validatedOrders = $this->validateBulkOrders($orders);
@@ -187,7 +190,7 @@ class SteadFast {
     private function handleResponse($response)
     {
 
-        if (!isset($response['status'])) {
+        if (! isset($response['status'])) {
             throw SteadfastException::apiError('Invalid response format');
         }
 
@@ -200,12 +203,11 @@ class SteadFast {
 
         return $response;
 
-
     }
 
     private function logRequest(array $logData): void
     {
-        if (!$this->config['logging']['enabled']) {
+        if (! $this->config['logging']['enabled']) {
             return;
         }
         try {
@@ -215,10 +217,10 @@ class SteadFast {
                 'response' => $logData['response'],
                 'endpoint' => $logData['endpoint'],
                 'status_code' => $logData['status_code'],
-                'created_at' => now()
+                'created_at' => now(),
             ]);
         } catch (Exception $e) {
-            Log::error('Steadfast logging failed: ' . $e->getMessage());
+            Log::error('Steadfast logging failed: '.$e->getMessage());
         }
     }
 
@@ -228,11 +230,14 @@ class SteadFast {
             try {
                 if ($order instanceof OrderRequest) {
                     $order->validate();
+
                     return true;
                 }
+
                 return false;
             } catch (Exception $e) {
-                Log::warning('Invalid order filtered: ' . $e->getMessage());
+                Log::warning('Invalid order filtered: '.$e->getMessage());
+
                 return false;
             }
         });
@@ -246,7 +251,7 @@ class SteadFast {
         return new BulkOrderResponse([
             'status' => 'queued',
             'message' => 'Bulk orders processing has been queued',
-            'order_count' => count($orders)
+            'order_count' => count($orders),
         ]);
     }
 
@@ -267,7 +272,7 @@ class SteadFast {
             } catch (Exception $e) {
                 $this->handleException($e, [
                     'chunk_size' => count($chunk),
-                    'endpoint' => '/create_order/bulk-order'
+                    'endpoint' => '/create_order/bulk-order',
                 ]);
             }
         }
@@ -275,7 +280,7 @@ class SteadFast {
         return new BulkOrderResponse([
             'status' => 'processed',
             'data' => $responses,
-            'success_count' => count(array_filter($responses, fn($r) => $r['status'] === 'success'))
+            'success_count' => count(array_filter($responses, fn ($r) => $r['status'] === 'success')),
         ]);
     }
 
@@ -295,7 +300,7 @@ class SteadFast {
             'request' => $data,
             'response' => $response,
             'endpoint' => $endpoint,
-            'status_code' => $response['status'] ?? 500
+            'status_code' => $response['status'] ?? 500,
         ]);
 
         return $response;
@@ -311,8 +316,7 @@ class SteadFast {
         return [
             'status' => 'success',
             'data' => $processed['data'] ?? [],
-            'processed_at' => now()->toDateTimeString()
+            'processed_at' => now()->toDateTimeString(),
         ];
     }
-
 }

@@ -18,27 +18,20 @@ use Throwable;
 
 class ProcessBulkOrders implements ShouldQueue
 {
-
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
      * The maximum number of times the job may be attempted.
-     *
-     * @var int
      */
     public int $tries = 3;
 
     /**
      * The number of seconds to wait before retrying the job.
-     *
-     * @var int
      */
     public int $backoff = 60;
 
     /**
      * The orders to be processed.
-     *
-     * @var array
      */
     protected array $orders;
 
@@ -46,7 +39,6 @@ class ProcessBulkOrders implements ShouldQueue
     {
         $this->orders = $orders;
     }
-
 
     /**
      * @throws SteadfastException
@@ -60,7 +52,7 @@ class ProcessBulkOrders implements ShouldQueue
 
             if ($response->status !== 'processed') {
                 throw new SteadfastException(
-                    'Unexpected processing status: ' . $response->status,
+                    'Unexpected processing status: '.$response->status,
                     500,
                     null,
                     $response->toArray()
@@ -84,7 +76,7 @@ class ProcessBulkOrders implements ShouldQueue
                 'request' => ['order_count' => count($this->orders)],
                 'response' => null,
                 'endpoint' => 'internal',
-                'status_code' => 200
+                'status_code' => 200,
             ]);
         }
     }
@@ -102,7 +94,7 @@ class ProcessBulkOrders implements ShouldQueue
                 'response' => $e->getContext(),
                 'endpoint' => 'internal',
                 'status_code' => $e->getCode(),
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -126,13 +118,13 @@ class ProcessBulkOrders implements ShouldQueue
             'exception' => $exception->getMessage(),
             'orders' => array_map(function ($order) {
                 return $order instanceof OrderRequest ? $order->invoice : 'Invalid order';
-            }, $this->orders)
+            }, $this->orders),
         ]);
     }
 
     public function displayName(): string
     {
-        return 'Steadfast Bulk Orders: ' . count($this->orders) . ' orders';
+        return 'Steadfast Bulk Orders: '.count($this->orders).' orders';
     }
 
     public function tags(): array
@@ -140,7 +132,7 @@ class ProcessBulkOrders implements ShouldQueue
         return [
             'steadfast',
             'bulk_orders',
-            'count:'.count($this->orders)
+            'count:'.count($this->orders),
         ];
     }
 
@@ -153,10 +145,8 @@ class ProcessBulkOrders implements ShouldQueue
                 'response' => $response->toArray(),
                 'endpoint' => 'internal',
                 'status_code' => 200,
-                'created_at' => now()
+                'created_at' => now(),
             ]);
         }
     }
-
-
 }

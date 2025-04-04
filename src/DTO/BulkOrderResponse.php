@@ -5,9 +5,13 @@ namespace SabitAhmad\SteadFast\DTO;
 class BulkOrderResponse
 {
     public string $status;
+
     public string $message;
+
     public ?array $data;
+
     public ?int $order_count;
+
     public ?int $success_count;
 
     public function __construct(array $responseData)
@@ -26,7 +30,7 @@ class BulkOrderResponse
             'message' => $this->message,
             'data' => $this->data,
             'order_count' => $this->order_count,
-            'success_count' => $this->success_count
+            'success_count' => $this->success_count,
         ];
     }
 }

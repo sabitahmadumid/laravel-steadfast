@@ -3,15 +3,12 @@
 namespace SabitAhmad\SteadFast\Exceptions;
 
 use Exception;
-
 use Throwable;
 
 class SteadfastException extends Exception
 {
     /**
      * Additional context about the error.
-     *
-     * @var array
      */
     protected array $context = [];
 
@@ -25,21 +22,16 @@ class SteadfastException extends Exception
         404 => 'Not Found',
         429 => 'Too Many Requests',
         500 => 'Internal Server Error',
-        503 => 'Service Unavailable'
+        503 => 'Service Unavailable',
     ];
 
     /**
      * Create a new exception instance.
-     *
-     * @param string $message
-     * @param int $code
-     * @param Throwable|null $previous
-     * @param array $context
      */
     public function __construct(
-        string $message = "",
+        string $message = '',
         int $code = 0,
-        Throwable $previous = null,
+        ?Throwable $previous = null,
         array $context = []
     ) {
         parent::__construct($message, $code, $previous);
@@ -48,8 +40,6 @@ class SteadfastException extends Exception
 
     /**
      * Get the exception context.
-     *
-     * @return array
      */
     public function getContext(): array
     {
@@ -59,7 +49,6 @@ class SteadfastException extends Exception
     /**
      * Create an exception for invalid configuration.
      *
-     * @param string $missingKey
      * @return static
      */
     public static function invalidConfig(string $missingKey): self
@@ -75,8 +64,6 @@ class SteadfastException extends Exception
     /**
      * Create an exception for API errors.
      *
-     * @param string $message
-     * @param array $response
      * @return static
      */
     public static function apiError(string $message, array $response = []): self
@@ -95,7 +82,6 @@ class SteadfastException extends Exception
     /**
      * Create an exception for validation errors.
      *
-     * @param array $errors
      * @return static
      */
     public static function validationError(array $errors): self
@@ -111,7 +97,6 @@ class SteadfastException extends Exception
     /**
      * Create an exception for connection errors.
      *
-     * @param Throwable $e
      * @return static
      */
     public static function connectionError(Throwable $e): self
@@ -127,7 +112,6 @@ class SteadfastException extends Exception
     /**
      * Create an exception for rate limiting.
      *
-     * @param int $retryAfter
      * @return static
      */
     public static function rateLimitExceeded(int $retryAfter = 60): self
@@ -142,8 +126,6 @@ class SteadfastException extends Exception
 
     /**
      * Convert the exception to an array.
-     *
-     * @return array
      */
     public function toArray(): array
     {

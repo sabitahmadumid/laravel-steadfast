@@ -23,7 +23,7 @@ class SteadFastServiceProvider extends PackageServiceProvider
     public function packageRegistered(): void
     {
         $this->app->singleton(SteadFast::class, function () {
-            return new SteadFast();
+            return new SteadFast;
         });
     }
 }
