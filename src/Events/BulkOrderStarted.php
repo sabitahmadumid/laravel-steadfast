@@ -10,6 +10,7 @@ class BulkOrderStarted
     use Dispatchable, SerializesModels;
 
     public array $orders;
+
     public string $uniqueId;
 
     public function __construct(array $orders, string $uniqueId)

@@ -5,7 +5,6 @@ namespace SabitAhmad\SteadFast\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Prunable;
-use Illuminate\Support\Carbon;
 
 class SteadfastLog extends Model
 {
@@ -28,6 +27,7 @@ class SteadfastLog extends Model
     public function prunable(): Builder
     {
         $keepDays = config('steadfast.logging.keep_logs_days', 30);
+
         return static::where('created_at', '<=', now()->subDays($keepDays));
     }
 
@@ -93,16 +93,16 @@ class SteadfastLog extends Model
     public function getFormattedDurationAttribute(): string
     {
         $duration = $this->response['duration_ms'] ?? null;
-        
+
         if ($duration === null) {
             return 'N/A';
         }
 
         if ($duration < 1000) {
-            return round($duration, 2) . 'ms';
+            return round($duration, 2).'ms';
         }
 
-        return round($duration / 1000, 2) . 's';
+        return round($duration / 1000, 2).'s';
     }
 
     /**
@@ -110,7 +110,7 @@ class SteadfastLog extends Model
      */
     public function isError(): bool
     {
-        return $this->status_code >= 400 || !empty($this->error);
+        return $this->status_code >= 400 || ! empty($this->error);
     }
 
     /**
@@ -127,11 +127,11 @@ class SteadfastLog extends Model
     public function getEndpointNameAttribute(): string
     {
         $endpoint = $this->endpoint;
-        
+
         // Remove dynamic parts like IDs
         $endpoint = preg_replace('/\/\d+/', '/{id}', $endpoint);
         $endpoint = preg_replace('/\/[a-zA-Z0-9_-]+$/', '/{identifier}', $endpoint);
-        
+
         return $endpoint;
     }
 
@@ -141,7 +141,7 @@ class SteadfastLog extends Model
     public static function getStats(int $hours = 24): array
     {
         $query = static::recent($hours);
-        
+
         return [
             'total' => $query->count(),
             'successful' => $query->successful()->count(),
@@ -169,11 +169,12 @@ class SteadfastLog extends Model
      */
     public static function cleanup(): int
     {
-        if (!config('steadfast.logging.cleanup_logs', true)) {
+        if (! config('steadfast.logging.cleanup_logs', true)) {
             return 0;
         }
 
         $keepDays = config('steadfast.logging.keep_logs_days', 30);
+
         return static::where('created_at', '<=', now()->subDays($keepDays))->delete();
     }
 }

@@ -11,6 +11,7 @@ class BulkOrderCompleted
     use Dispatchable, SerializesModels;
 
     public BulkOrderResponse $response;
+
     public string $uniqueId;
 
     public function __construct(BulkOrderResponse $response, string $uniqueId)

@@ -13,8 +13,9 @@ class SteadfastCleanupCommand extends Command
 
     public function handle(): void
     {
-        if (!config('steadfast.logging.cleanup_logs', true)) {
+        if (! config('steadfast.logging.cleanup_logs', true)) {
             $this->error('Log cleanup is disabled in configuration.');
+
             return;
         }
 
@@ -23,13 +24,15 @@ class SteadfastCleanupCommand extends Command
 
         if ($oldLogsCount === 0) {
             $this->info('No old logs found to clean up.');
+
             return;
         }
 
         $this->info("Found {$oldLogsCount} logs older than {$keepDays} days.");
 
-        if (!$this->option('force') && !$this->confirm('Do you want to delete these logs?')) {
+        if (! $this->option('force') && ! $this->confirm('Do you want to delete these logs?')) {
             $this->info('Cleanup cancelled.');
+
             return;
         }
 

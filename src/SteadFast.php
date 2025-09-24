@@ -85,6 +85,7 @@ class SteadFast
     {
         if ($exception instanceof RequestException) {
             $statusCode = $exception->response?->status();
+
             return in_array($statusCode, $this->config['retry']['when'] ?? [500, 502, 503, 504, 429]);
         }
 
@@ -93,7 +94,7 @@ class SteadFast
 
     /**
      * Create a single order
-     * 
+     *
      * @throws SteadfastException
      */
     public function createOrder(OrderRequest $order): OrderResponse
@@ -118,15 +119,16 @@ class SteadFast
 
     /**
      * Get current account balance
-     * 
+     *
      * @throws SteadfastException
      */
     public function getBalance(): BalanceResponse
     {
         $cacheKey = $this->getCacheKey('balance');
-        
+
         if ($this->config['cache']['enabled'] && Cache::has($cacheKey)) {
             $cached = Cache::get($cacheKey);
+
             return BalanceResponse::fromArray($cached);
         }
 
@@ -145,7 +147,7 @@ class SteadFast
             ]);
 
             $processedResponse = $this->handleResponse($response);
-            
+
             if ($this->config['cache']['enabled']) {
                 Cache::put($cacheKey, $processedResponse, $this->config['cache']['ttl']);
             }
@@ -158,7 +160,7 @@ class SteadFast
 
     /**
      * Check order status by consignment ID
-     * 
+     *
      * @throws SteadfastException
      */
     public function checkStatusByConsignmentId(int $id): StatusResponse
@@ -168,7 +170,7 @@ class SteadFast
 
     /**
      * Check order status by invoice
-     * 
+     *
      * @throws SteadfastException
      */
     public function checkStatusByInvoice(string $invoice): StatusResponse
@@ -178,7 +180,7 @@ class SteadFast
 
     /**
      * Check order status by tracking code
-     * 
+     *
      * @throws SteadfastException
      */
     public function checkStatusByTrackingCode(string $trackingCode): StatusResponse
@@ -198,15 +200,16 @@ class SteadFast
         ];
 
         $cacheKey = $this->getCacheKey("status_{$type}_{$identifier}");
-        
+
         if ($this->config['cache']['enabled'] && Cache::has($cacheKey)) {
             $cached = Cache::get($cacheKey);
+
             return StatusResponse::fromArray($cached);
         }
 
         try {
             $response = $this->httpClient
-                ->get($endpoints[$type] . $identifier)
+                ->get($endpoints[$type].$identifier)
                 ->throw()
                 ->json();
 
@@ -219,7 +222,7 @@ class SteadFast
             ]);
 
             $processedResponse = $this->handleResponse($response);
-            
+
             if ($this->config['cache']['enabled']) {
                 // Cache status for shorter time as it changes frequently
                 Cache::put($cacheKey, $processedResponse, min($this->config['cache']['ttl'], 60));
@@ -237,7 +240,7 @@ class SteadFast
 
     /**
      * Create a return request
-     * 
+     *
      * @throws SteadfastException
      */
     public function createReturnRequest(ReturnRequest $returnRequest): ReturnResponse
@@ -260,7 +263,7 @@ class SteadFast
 
     /**
      * Get a single return request by ID
-     * 
+     *
      * @throws SteadfastException
      */
     public function getReturnRequest(int $id): ReturnResponse
@@ -290,7 +293,7 @@ class SteadFast
 
     /**
      * Get all return requests
-     * 
+     *
      * @throws SteadfastException
      */
     public function getReturnRequests(): array
@@ -310,10 +313,10 @@ class SteadFast
             ]);
 
             $processedResponse = $this->handleResponse($response);
-            
+
             // Convert each return request to ReturnResponse object
             return array_map(
-                fn($item) => ReturnResponse::fromArray($item),
+                fn ($item) => ReturnResponse::fromArray($item),
                 $processedResponse['data'] ?? $processedResponse
             );
         } catch (Exception $e) {
@@ -352,7 +355,7 @@ class SteadFast
         if ($e instanceof RequestException) {
             $statusCode = $e->response?->status() ?? 500;
             $responseBody = $e->response?->json() ?? [];
-            
+
             throw match ($statusCode) {
                 401 => SteadfastException::authenticationError($responseBody['message'] ?? 'Invalid credentials'),
                 404 => SteadfastException::notFoundError($context['resource'] ?? 'Resource', $context['identifier'] ?? 'unknown'),
@@ -364,7 +367,7 @@ class SteadFast
 
         // Wrap generic exceptions
         throw new SteadfastException(
-            'Service Error: ' . $e->getMessage(),
+            'Service Error: '.$e->getMessage(),
             $e->getCode() ?: 500,
             $e,
             $context
@@ -376,15 +379,16 @@ class SteadFast
         if ($e instanceof RequestException) {
             return $e->response?->status() ?? 500;
         }
-        
+
         return $e->getCode() ?: 500;
     }
 
     /**
      * Create multiple orders in bulk
-     * 
-     * @param array $orders Array of OrderRequest objects or arrays
-     * @param bool|null $useQueue Whether to use queue (defaults to config)
+     *
+     * @param  array  $orders  Array of OrderRequest objects or arrays
+     * @param  bool|null  $useQueue  Whether to use queue (defaults to config)
+     *
      * @throws SteadfastException
      */
     public function bulkCreate(array $orders, ?bool $useQueue = null): BulkOrderResponse
@@ -416,7 +420,7 @@ class SteadFast
      */
     private function handleResponse(array $response): array
     {
-        if (!isset($response['status'])) {
+        if (! isset($response['status'])) {
             throw SteadfastException::apiError('Invalid response format: missing status field', $response);
         }
 
@@ -430,13 +434,13 @@ class SteadFast
 
     private function logRequest(array $logData): void
     {
-        if (!$this->config['logging']['enabled']) {
+        if (! $this->config['logging']['enabled']) {
             return;
         }
 
         // Filter sensitive data from logs
         $filteredRequest = $this->filterSensitiveData($logData['request'] ?? []);
-        $filteredResponse = $this->config['logging']['log_responses'] 
+        $filteredResponse = $this->config['logging']['log_responses']
             ? $this->filterSensitiveData($logData['response'] ?? [])
             : null;
 
@@ -451,7 +455,7 @@ class SteadFast
                 'created_at' => now(),
             ]);
         } catch (Exception $e) {
-            Log::error('Steadfast logging failed: ' . $e->getMessage(), [
+            Log::error('Steadfast logging failed: '.$e->getMessage(), [
                 'original_log_data' => $logData,
             ]);
         }
@@ -460,7 +464,7 @@ class SteadFast
     private function filterSensitiveData(array $data): array
     {
         $sensitive = ['Api-Key', 'Secret-Key', 'api_key', 'secret_key', 'password', 'token'];
-        
+
         foreach ($sensitive as $key) {
             if (isset($data[$key])) {
                 $data[$key] = '***FILTERED***';
@@ -482,27 +486,28 @@ class SteadFast
                     $order = OrderRequest::fromArray($order);
                 }
 
-                if (!($order instanceof OrderRequest)) {
+                if (! ($order instanceof OrderRequest)) {
                     $errors[] = "Order at index {$index}: Invalid order type";
+
                     continue;
                 }
 
                 $order->validate();
                 $validOrders[] = $order;
             } catch (SteadfastException $e) {
-                $errors[] = "Order at index {$index}: " . $e->getMessage();
+                $errors[] = "Order at index {$index}: ".$e->getMessage();
                 Log::warning('Invalid order filtered', [
                     'index' => $index,
                     'error' => $e->getMessage(),
                     'order' => is_array($order) ? $order : ($order instanceof OrderRequest ? $order->toArray() : 'invalid'),
                 ]);
             } catch (Exception $e) {
-                $errors[] = "Order at index {$index}: " . $e->getMessage();
-                Log::warning('Invalid order filtered: ' . $e->getMessage());
+                $errors[] = "Order at index {$index}: ".$e->getMessage();
+                Log::warning('Invalid order filtered: '.$e->getMessage());
             }
         }
 
-        if (!empty($errors) && config('steadfast.logging.enabled')) {
+        if (! empty($errors) && config('steadfast.logging.enabled')) {
             $this->logRequest([
                 'type' => 'bulk_validation_errors',
                 'request' => ['total_orders' => count($orders), 'valid_orders' => count($validOrders)],
@@ -521,7 +526,7 @@ class SteadFast
             ->onQueue($this->config['bulk']['queue_name']);
 
         // Set connection if specified
-        if (!empty($this->config['bulk']['queue_connection'])) {
+        if (! empty($this->config['bulk']['queue_connection'])) {
             $job->onConnection($this->config['bulk']['queue_connection']);
         }
 
@@ -618,7 +623,7 @@ class SteadFast
             $responseBody = $e->response?->json() ?? [];
 
             $this->logRequest([
-                'type' => $type . '_error',
+                'type' => $type.'_error',
                 'request' => $data,
                 'response' => $responseBody,
                 'endpoint' => $endpoint,
@@ -647,6 +652,7 @@ class SteadFast
 
         // Fallback for wrapped responses
         $processed = $this->handleResponse($response);
+
         return [
             'status' => 'success',
             'data' => $processed['data'] ?? $processed,
@@ -660,6 +666,7 @@ class SteadFast
     private function getCacheKey(string $key): string
     {
         $prefix = $this->config['cache']['prefix'] ?? 'steadfast';
+
         return "{$prefix}:{$key}";
     }
 
@@ -668,7 +675,7 @@ class SteadFast
      */
     public function clearCache(?string $key = null): bool
     {
-        if (!$this->config['cache']['enabled']) {
+        if (! $this->config['cache']['enabled']) {
             return false;
         }
 
@@ -678,6 +685,7 @@ class SteadFast
 
         // Clear all steadfast cache
         $prefix = $this->config['cache']['prefix'] ?? 'steadfast';
+
         return Cache::flush(); // Note: This flushes all cache, might want to implement prefix-based clearing
     }
 
@@ -691,13 +699,14 @@ class SteadFast
 
     /**
      * Test API connection
-     * 
+     *
      * @throws SteadfastException
      */
     public function testConnection(): array
     {
         try {
             $balance = $this->getBalance();
+
             return [
                 'status' => 'success',
                 'message' => 'API connection successful',

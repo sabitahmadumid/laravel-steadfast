@@ -51,7 +51,7 @@ class StatusResponse
             'delivered_approval_pending',
             'partial_delivered_approval_pending',
             'cancelled_approval_pending',
-            'unknown_approval_pending'
+            'unknown_approval_pending',
         ]);
     }
 
@@ -74,7 +74,7 @@ class StatusResponse
             'hold' => 'Consignment is held.',
             'in_review' => 'Order is placed and waiting to be reviewed.',
             'unknown' => 'Unknown status. Need contact with the support team.',
-            default => 'Unknown status: ' . $this->delivery_status
+            default => 'Unknown status: '.$this->delivery_status
         };
     }
 }

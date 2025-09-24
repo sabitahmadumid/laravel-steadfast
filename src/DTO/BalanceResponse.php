@@ -35,6 +35,6 @@ class BalanceResponse
 
     public function getFormattedBalance(): string
     {
-        return number_format($this->current_balance, 2) . ' BDT';
+        return number_format($this->current_balance, 2).' BDT';
     }
 }

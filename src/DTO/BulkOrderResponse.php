@@ -91,19 +91,19 @@ class BulkOrderResponse
 
     public function getSuccessfulOrders(): array
     {
-        if (!$this->data) {
+        if (! $this->data) {
             return [];
         }
 
-        return array_filter($this->data, fn($item) => ($item['status'] ?? '') === 'success');
+        return array_filter($this->data, fn ($item) => ($item['status'] ?? '') === 'success');
     }
 
     public function getFailedOrders(): array
     {
-        if (!$this->data) {
+        if (! $this->data) {
             return [];
         }
 
-        return array_filter($this->data, fn($item) => ($item['status'] ?? '') !== 'success');
+        return array_filter($this->data, fn ($item) => ($item['status'] ?? '') !== 'success');
     }
 }

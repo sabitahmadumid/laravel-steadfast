@@ -11,7 +11,9 @@ class BulkOrderFailed
     use Dispatchable, SerializesModels;
 
     public Throwable $exception;
+
     public array $orders;
+
     public string $uniqueId;
 
     public function __construct(Throwable $exception, array $orders, string $uniqueId)

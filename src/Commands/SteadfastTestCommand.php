@@ -58,8 +58,8 @@ class SteadfastTestCommand extends Command
         $logging = config('steadfast.logging.enabled', true);
 
         $this->info("   ✓ Timeout: {$timeout}s");
-        $this->info("   ✓ Bulk Queue: " . ($bulkQueue ? 'enabled' : 'disabled'));
-        $this->info("   ✓ Logging: " . ($logging ? 'enabled' : 'disabled'));
+        $this->info('   ✓ Bulk Queue: '.($bulkQueue ? 'enabled' : 'disabled'));
+        $this->info('   ✓ Logging: '.($logging ? 'enabled' : 'disabled'));
     }
 
     private function testApiConnection(): void
@@ -67,23 +67,23 @@ class SteadfastTestCommand extends Command
         $this->info("\n2. API Connection Test:");
 
         try {
-            $steadfast = new SteadFast();
+            $steadfast = new SteadFast;
             $result = $steadfast->testConnection();
 
-            $this->info("   ✓ API connection successful");
-            $this->info("   ✓ Current balance: " . number_format($result['balance'], 2) . ' BDT');
+            $this->info('   ✓ API connection successful');
+            $this->info('   ✓ Current balance: '.number_format($result['balance'], 2).' BDT');
         } catch (SteadfastException $e) {
-            $this->error("   ✗ API connection failed: " . $e->getMessage());
-            
+            $this->error('   ✗ API connection failed: '.$e->getMessage());
+
             if ($e->getCode() === 401) {
-                $this->error("   → Check your API credentials");
+                $this->error('   → Check your API credentials');
             } elseif ($e->getCode() === 503) {
-                $this->error("   → Steadfast API is currently unavailable");
+                $this->error('   → Steadfast API is currently unavailable');
             } elseif ($e->getCode() === 404) {
-                $this->error("   → Check your base URL configuration");
+                $this->error('   → Check your base URL configuration');
             }
         } catch (\Exception $e) {
-            $this->error("   ✗ Unexpected error: " . $e->getMessage());
+            $this->error('   ✗ Unexpected error: '.$e->getMessage());
         }
     }
 }

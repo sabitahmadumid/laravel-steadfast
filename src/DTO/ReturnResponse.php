@@ -73,7 +73,7 @@ class ReturnResponse
             'processing' => 'Return request is being processed.',
             'completed' => 'Return request has been completed.',
             'cancelled' => 'Return request has been cancelled.',
-            default => 'Unknown status: ' . $this->status
+            default => 'Unknown status: '.$this->status
         };
     }
 }

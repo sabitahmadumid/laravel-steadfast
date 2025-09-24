@@ -47,7 +47,7 @@ return [
         'sleep' => env('STEADFAST_RETRY_SLEEP', 1000), // milliseconds
         'when' => [
             // Retry on these HTTP status codes
-            500, 502, 503, 504, 429
+            500, 502, 503, 504, 429,
         ],
     ],
 

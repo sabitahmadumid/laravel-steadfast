@@ -86,7 +86,7 @@ class SteadfastException extends Exception
      */
     public static function validationError(array $errors): self
     {
-        $message = 'Validation failed: ' . collect($errors)
+        $message = 'Validation failed: '.collect($errors)
             ->flatten()
             ->implode(', ');
 

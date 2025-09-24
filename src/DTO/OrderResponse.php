@@ -55,8 +55,8 @@ class OrderResponse
 
     public function getCodAmount(): ?float
     {
-        return isset($this->consignment['cod_amount']) 
-            ? (float) $this->consignment['cod_amount'] 
+        return isset($this->consignment['cod_amount'])
+            ? (float) $this->consignment['cod_amount']
             : null;
     }
 }

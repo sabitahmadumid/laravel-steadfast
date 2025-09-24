@@ -23,12 +23,12 @@ class SteadfastStatsCommand extends Command
             ['Total Requests', number_format($stats['total'])],
             ['Successful', number_format($stats['successful'])],
             ['Errors', number_format($stats['errors'])],
-            ['Success Rate', $stats['total'] > 0 ? round(($stats['successful'] / $stats['total']) * 100, 2) . '%' : 'N/A'],
+            ['Success Rate', $stats['total'] > 0 ? round(($stats['successful'] / $stats['total']) * 100, 2).'%' : 'N/A'],
             ['Bulk Operations', number_format($stats['bulk_operations'])],
-            ['Average Duration', isset($stats['average_duration']) ? round($stats['average_duration'], 2) . 'ms' : 'N/A'],
+            ['Average Duration', isset($stats['average_duration']) ? round($stats['average_duration'], 2).'ms' : 'N/A'],
         ]);
 
-        if (!empty($stats['endpoints'])) {
+        if (! empty($stats['endpoints'])) {
             $this->info("\nTop Endpoints:");
             $endpointData = [];
             foreach ($stats['endpoints'] as $endpoint => $count) {
@@ -37,7 +37,7 @@ class SteadfastStatsCommand extends Command
             $this->table(['Endpoint', 'Requests'], $endpointData);
         }
 
-        if (!empty($stats['error_types'])) {
+        if (! empty($stats['error_types'])) {
             $this->info("\nError Types:");
             $errorData = [];
             foreach ($stats['error_types'] as $statusCode => $count) {

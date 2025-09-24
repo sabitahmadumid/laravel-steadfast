@@ -22,7 +22,7 @@ use SabitAhmad\SteadFast\Models\SteadfastLog;
 use SabitAhmad\SteadFast\SteadFast;
 use Throwable;
 
-class ProcessBulkOrders implements ShouldQueue, ShouldBeUnique
+class ProcessBulkOrders implements ShouldBeUnique, ShouldQueue
 {
     use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -54,8 +54,8 @@ class ProcessBulkOrders implements ShouldQueue, ShouldBeUnique
     public function __construct(array $orders)
     {
         $this->orders = $orders;
-        $this->uniqueId = md5(serialize($orders) . time());
-        
+        $this->uniqueId = md5(serialize($orders).time());
+
         // Get configuration values
         $config = config('steadfast.bulk', []);
         $this->tries = $config['max_attempts'] ?? 3;
@@ -67,7 +67,7 @@ class ProcessBulkOrders implements ShouldQueue, ShouldBeUnique
      */
     public function uniqueId(): string
     {
-        return 'bulk_orders_' . $this->uniqueId;
+        return 'bulk_orders_'.$this->uniqueId;
     }
 
     /**
@@ -81,7 +81,7 @@ class ProcessBulkOrders implements ShouldQueue, ShouldBeUnique
         }
 
         $this->logJobStart();
-        
+
         // Fire event for job start
         if (class_exists('SabitAhmad\SteadFast\Events\BulkOrderStarted')) {
             Event::dispatch(new BulkOrderStarted($this->orders, $this->uniqueId));
@@ -90,9 +90,9 @@ class ProcessBulkOrders implements ShouldQueue, ShouldBeUnique
         try {
             $response = $steadFast->processBulkOrders($this->orders);
 
-            if (!$response->isSuccessful()) {
+            if (! $response->isSuccessful()) {
                 throw new SteadfastException(
-                    'Bulk order processing failed: ' . $response->message,
+                    'Bulk order processing failed: '.$response->message,
                     500,
                     null,
                     $response->toArray()
@@ -100,7 +100,7 @@ class ProcessBulkOrders implements ShouldQueue, ShouldBeUnique
             }
 
             $this->logSuccess($response);
-            
+
             // Fire event for job completion
             if (class_exists('SabitAhmad\SteadFast\Events\BulkOrderCompleted')) {
                 Event::dispatch(new BulkOrderCompleted($response, $this->uniqueId));
@@ -146,6 +146,7 @@ class ProcessBulkOrders implements ShouldQueue, ShouldBeUnique
 
         if ($this->attempts() >= $this->tries) {
             $this->fail($e);
+
             return;
         }
 
@@ -157,7 +158,7 @@ class ProcessBulkOrders implements ShouldQueue, ShouldBeUnique
     protected function handleGenericException(Exception $e): void
     {
         $this->logError($e);
-        
+
         // Fire error event
         if (class_exists('SabitAhmad\SteadFast\Events\BulkOrderFailed')) {
             Event::dispatch(new BulkOrderFailed($e, $this->orders, $this->uniqueId));
@@ -177,7 +178,7 @@ class ProcessBulkOrders implements ShouldQueue, ShouldBeUnique
                     'job_id' => $this->job?->getJobId(),
                     'attempts' => $this->attempts(),
                     'orders' => array_map(function ($order) {
-                        return $order instanceof OrderRequest 
+                        return $order instanceof OrderRequest
                             ? ['invoice' => $order->invoice, 'cod_amount' => $order->cod_amount]
                             : 'Invalid order';
                     }, array_slice($this->orders, 0, 5)), // Log first 5 orders for debugging
@@ -222,7 +223,7 @@ class ProcessBulkOrders implements ShouldQueue, ShouldBeUnique
 
     public function displayName(): string
     {
-        return 'Steadfast Bulk Orders: ' . count($this->orders) . ' orders [' . $this->uniqueId . ']';
+        return 'Steadfast Bulk Orders: '.count($this->orders).' orders ['.$this->uniqueId.']';
     }
 
     public function tags(): array
@@ -230,8 +231,8 @@ class ProcessBulkOrders implements ShouldQueue, ShouldBeUnique
         return [
             'steadfast',
             'bulk_orders',
-            'count:' . count($this->orders),
-            'unique_id:' . $this->uniqueId,
+            'count:'.count($this->orders),
+            'unique_id:'.$this->uniqueId,
         ];
     }
 
@@ -270,6 +271,7 @@ class ProcessBulkOrders implements ShouldQueue, ShouldBeUnique
                     'delivery_type' => $order->delivery_type,
                 ];
             }
+
             return 'Invalid order type';
         }, array_slice($this->orders, 0, 10)); // Log first 10 orders
     }
