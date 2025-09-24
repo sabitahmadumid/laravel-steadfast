@@ -86,11 +86,75 @@ class SteadfastException extends Exception
      */
     public static function validationError(array $errors): self
     {
+        $message = 'Validation failed: ' . collect($errors)
+            ->flatten()
+            ->implode(', ');
+
         return new static(
-            'Order validation failed',
+            $message,
             422,
             null,
             ['validation_errors' => $errors]
+        );
+    }
+
+    /**
+     * Create an exception for bulk order processing errors.
+     *
+     * @return static
+     */
+    public static function bulkOrderError(string $message, array $context = []): self
+    {
+        return new static(
+            "Bulk Order Error: $message",
+            400,
+            null,
+            $context
+        );
+    }
+
+    /**
+     * Create an exception for authentication errors.
+     *
+     * @return static
+     */
+    public static function authenticationError(string $message = 'Invalid API credentials'): self
+    {
+        return new static(
+            "Authentication Error: $message",
+            401,
+            null,
+            ['auth_error' => true]
+        );
+    }
+
+    /**
+     * Create an exception for resource not found errors.
+     *
+     * @return static
+     */
+    public static function notFoundError(string $resource, string $identifier): self
+    {
+        return new static(
+            "Resource not found: $resource with identifier '$identifier'",
+            404,
+            null,
+            ['resource' => $resource, 'identifier' => $identifier]
+        );
+    }
+
+    /**
+     * Create an exception for service unavailable errors.
+     *
+     * @return static
+     */
+    public static function serviceUnavailable(string $message = 'Steadfast API is currently unavailable'): self
+    {
+        return new static(
+            $message,
+            503,
+            null,
+            ['service_unavailable' => true]
         );
     }
 
