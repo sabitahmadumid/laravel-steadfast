@@ -99,4 +99,31 @@ return [
         'delivery_type' => env('STEADFAST_DEFAULT_DELIVERY_TYPE', 0), // 0 = home, 1 = point
         'cod_amount' => env('STEADFAST_DEFAULT_COD_AMOUNT', 0),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fraud Checker Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configure fraud checking via web scraping. This requires valid Steadfast
+    | merchant panel credentials. The fraud checker will login, fetch customer
+    | order history, and logout automatically.
+    |
+    */
+    'fraud_checker' => [
+        'enabled' => env('STEADFAST_FRAUD_CHECKER_ENABLED', false),
+        'email' => env('STEADFAST_FRAUD_CHECKER_EMAIL'),
+        'password' => env('STEADFAST_FRAUD_CHECKER_PASSWORD'),
+        
+        // Risk thresholds (percentage)
+        'risk_thresholds' => [
+            'very_high' => env('STEADFAST_FRAUD_VERY_HIGH_THRESHOLD', 75),
+            'high' => env('STEADFAST_FRAUD_HIGH_THRESHOLD', 50),
+            'medium' => env('STEADFAST_FRAUD_MEDIUM_THRESHOLD', 25),
+        ],
+        
+        // Cache fraud check results to reduce load
+        'cache_enabled' => env('STEADFAST_FRAUD_CACHE_ENABLED', true),
+        'cache_ttl' => env('STEADFAST_FRAUD_CACHE_TTL', 3600), // 1 hour
+    ],
 ];

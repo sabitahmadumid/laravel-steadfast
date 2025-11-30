@@ -189,6 +189,51 @@ class SteadfastException extends Exception
     }
 
     /**
+     * Create an exception for fraud checker not enabled.
+     *
+     * @return static
+     */
+    public static function fraudCheckerNotEnabled(): self
+    {
+        return new static(
+            'Fraud checker is not enabled. Please enable it in the configuration and provide valid credentials.',
+            500,
+            null,
+            ['fraud_checker_enabled' => false]
+        );
+    }
+
+    /**
+     * Create an exception for fraud checker errors.
+     *
+     * @return static
+     */
+    public static function fraudCheckerError(string $message, ?Throwable $previous = null): self
+    {
+        return new static(
+            "Fraud Checker Error: $message",
+            500,
+            $previous,
+            ['fraud_checker_error' => true]
+        );
+    }
+
+    /**
+     * Create an exception for invalid phone number.
+     *
+     * @return static
+     */
+    public static function invalidPhoneNumber(string $phoneNumber): self
+    {
+        return new static(
+            "Invalid phone number format: $phoneNumber. Expected a valid Bangladeshi phone number in format 01XXXXXXXXX (e.g., 01712345678).",
+            422,
+            null,
+            ['phone_number' => $phoneNumber, 'validation_error' => true]
+        );
+    }
+
+    /**
      * Convert the exception to an array.
      */
     public function toArray(): array

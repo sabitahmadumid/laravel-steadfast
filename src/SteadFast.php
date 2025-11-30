@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use SabitAhmad\SteadFast\DTO\BalanceResponse;
 use SabitAhmad\SteadFast\DTO\BulkOrderResponse;
+use SabitAhmad\SteadFast\DTO\FraudCheckResponse;
 use SabitAhmad\SteadFast\DTO\OrderRequest;
 use SabitAhmad\SteadFast\DTO\OrderResponse;
 use SabitAhmad\SteadFast\DTO\ReturnRequest;
@@ -695,6 +696,202 @@ class SteadFast
     public function getConfig(): array
     {
         return $this->config;
+    }
+
+    /**
+     * Check fraud status for a phone number via web scraping
+     * 
+     * @param string $phoneNumber Customer phone number to check
+     * @throws SteadfastException
+     */
+    public function checkFraud(string $phoneNumber): FraudCheckResponse
+    {
+        // Validate fraud checker configuration
+        if (!$this->isFraudCheckerEnabled()) {
+            throw SteadfastException::fraudCheckerNotEnabled();
+        }
+
+        // Validate phone number
+        $phoneNumber = $this->validatePhoneNumber($phoneNumber);
+
+        try {
+            // Step 1: Fetch login page and extract CSRF token
+            $loginPageResponse = Http::get('https://steadfast.com.bd/login');
+            
+            if (!$loginPageResponse->successful()) {
+                throw SteadfastException::fraudCheckerError('Failed to access Steadfast login page');
+            }
+
+            $csrfToken = $this->extractCsrfToken($loginPageResponse->body());
+            
+            if (!$csrfToken) {
+                throw SteadfastException::fraudCheckerError('CSRF token not found on login page');
+            }
+
+            // Convert cookies for login
+            $cookies = $this->convertCookies($loginPageResponse->cookies());
+
+            // Step 2: Perform login
+            $loginResponse = Http::withCookies($cookies, 'steadfast.com.bd')
+                ->asForm()
+                ->post('https://steadfast.com.bd/login', [
+                    '_token' => $csrfToken,
+                    'email' => $this->config['fraud_checker']['email'],
+                    'password' => $this->config['fraud_checker']['password'],
+                ]);
+
+            if (!($loginResponse->successful() || $loginResponse->redirect())) {
+                $this->logFraudCheckRequest($phoneNumber, null, 'Login failed');
+                throw SteadfastException::fraudCheckerError('Login to Steadfast failed. Please check your credentials.');
+            }
+
+            // Update cookies after login
+            $loginCookies = $this->convertCookies($loginResponse->cookies());
+
+            // Step 3: Fetch fraud data
+            $fraudCheckUrl = "https://steadfast.com.bd/user/frauds/check/{$phoneNumber}";
+            $fraudResponse = Http::withCookies($loginCookies, 'steadfast.com.bd')
+                ->get($fraudCheckUrl);
+
+            if (!$fraudResponse->successful()) {
+                $this->performLogout($loginCookies);
+                throw SteadfastException::fraudCheckerError('Failed to fetch fraud data from Steadfast');
+            }
+
+            $fraudData = $fraudResponse->collect()->toArray();
+            
+            $result = [
+                'success' => $fraudData['total_delivered'] ?? 0,
+                'cancel' => $fraudData['total_cancelled'] ?? 0,
+                'total' => ($fraudData['total_delivered'] ?? 0) + ($fraudData['total_cancelled'] ?? 0),
+                'phone_number' => $phoneNumber,
+            ];
+
+            // Step 4: Logout
+            $this->performLogout($loginCookies);
+
+            // Log the successful fraud check
+            $this->logFraudCheckRequest($phoneNumber, $result);
+
+            return FraudCheckResponse::fromArray($result);
+        } catch (SteadfastException $e) {
+            throw $e;
+        } catch (Exception $e) {
+            $this->logFraudCheckRequest($phoneNumber, null, $e->getMessage());
+            throw SteadfastException::fraudCheckerError($e->getMessage(), $e);
+        }
+    }
+
+    /**
+     * Check if fraud checker is enabled and configured
+     */
+    private function isFraudCheckerEnabled(): bool
+    {
+        if (!isset($this->config['fraud_checker']['enabled']) || !$this->config['fraud_checker']['enabled']) {
+            return false;
+        }
+
+        return !empty($this->config['fraud_checker']['email']) 
+            && !empty($this->config['fraud_checker']['password']);
+    }
+
+    /**
+     * Validate and normalize phone number
+     * 
+     * @throws SteadfastException
+     */
+    private function validatePhoneNumber(string $phoneNumber): string
+    {
+        // Store original for error message
+        $originalPhone = $phoneNumber;
+
+        // Remove any whitespace and dashes
+        $phoneNumber = preg_replace('/[\s\-]+/', '', $phoneNumber);
+
+        // Remove country code prefix if present (+88 or 88)
+        $phoneNumber = preg_replace('/^(\+?88)/', '', $phoneNumber);
+
+        // Validate Bangladeshi phone number (must be 01 followed by 3-9, then 8 more digits)
+        if (!preg_match('/^01[3-9][0-9]{8}$/', $phoneNumber)) {
+            throw SteadfastException::invalidPhoneNumber($originalPhone);
+        }
+
+        return $phoneNumber;
+    }
+
+    /**
+     * Extract CSRF token from HTML
+     */
+    private function extractCsrfToken(string $html): ?string
+    {
+        // Try to match input token
+        if (preg_match('/<input type="hidden" name="_token" value="(.*?)"/', $html, $matches)) {
+            return $matches[1];
+        }
+
+        // Try to match meta token
+        if (preg_match('/<meta name="csrf-token" content="(.*?)"/', $html, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Convert CookieJar to array for HTTP requests
+     */
+    private function convertCookies($cookieJar): array
+    {
+        $cookies = [];
+        foreach ($cookieJar->toArray() as $cookie) {
+            $cookies[$cookie['Name']] = $cookie['Value'];
+        }
+        return $cookies;
+    }
+
+    /**
+     * Perform logout from Steadfast
+     */
+    private function performLogout(array $cookies): void
+    {
+        try {
+            $logoutPageResponse = Http::withCookies($cookies, 'steadfast.com.bd')
+                ->get('https://steadfast.com.bd/user/frauds/check');
+
+            if ($logoutPageResponse->successful()) {
+                $csrfToken = $this->extractCsrfToken($logoutPageResponse->body());
+
+                if ($csrfToken) {
+                    Http::withCookies($cookies, 'steadfast.com.bd')
+                        ->asForm()
+                        ->post('https://steadfast.com.bd/logout', [
+                            '_token' => $csrfToken,
+                        ]);
+                }
+            }
+        } catch (Exception $e) {
+            // Log but don't throw - logout failures shouldn't break the main flow
+            Log::warning('Steadfast fraud checker logout failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Log fraud check request
+     */
+    private function logFraudCheckRequest(string $phoneNumber, ?array $result = null, ?string $error = null): void
+    {
+        if (!$this->config['logging']['enabled']) {
+            return;
+        }
+
+        $this->logRequest([
+            'type' => 'fraud_check',
+            'request' => ['phone_number' => $phoneNumber],
+            'response' => $result,
+            'endpoint' => '/user/frauds/check',
+            'status_code' => $error ? 500 : 200,
+            'error' => $error,
+        ]);
     }
 
     /**

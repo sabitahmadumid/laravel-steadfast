@@ -5,25 +5,26 @@
 
 A comprehensive Laravel package for integrating with SteadFast Courier API. This package provides a clean, robust interface for managing orders, tracking shipments, and handling return requests with advanced features like bulk processing, caching, detailed logging, and event-driven architecture.
 
-## ✨ Features
+## Features
 
-- ✅ **Complete API Coverage**: All SteadFast API endpoints implemented
-- 📦 **Individual & Bulk Orders**: Efficient single and batch order processing
-- 🔄 **Return Requests**: Create and manage return requests
-- 🔍 **Status Tracking**: Real-time shipment status tracking
-- 💵 **Balance Management**: Account balance verification
-- � **Queue Support**: Background processing for bulk operations
-- 🗂️ **Comprehensive Validation**: Input validation with custom rules
-- ⚠️ **Advanced Error Handling**: Specific exceptions for different error types
-- 🧠 **Intelligent Caching**: Optional response caching for better performance
-- 📊 **Detailed Logging**: Request/response logging with statistics
-- 🎭 **Event System**: Events for bulk operations monitoring
-- �️ **Artisan Commands**: Built-in commands for testing and maintenance
-- 🔁 **Retry Logic**: Automatic retry with exponential backoff
-- 🔒 **Data Security**: Sensitive data filtering in logs
+- **Complete API Coverage**: All SteadFast API endpoints implemented
+- **Individual & Bulk Orders**: Efficient single and batch order processing
+- **Return Requests**: Create and manage return requests
+- **Status Tracking**: Real-time shipment status tracking
+- **Balance Management**: Account balance verification
+- **Fraud Checker**: Customer reliability analysis via order history (NEW)
+- **Queue Support**: Background processing for bulk operations
+- **Comprehensive Validation**: Input validation with custom rules
+- **Advanced Error Handling**: Specific exceptions for different error types
+- **Intelligent Caching**: Optional response caching for better performance
+- **Detailed Logging**: Request/response logging with statistics
+- **Event System**: Events for bulk operations monitoring
+- **Artisan Commands**: Built-in commands for testing and maintenance
+- **Retry Logic**: Automatic retry with exponential backoff
+- **Data Security**: Sensitive data filtering in logs
 
 
-## 🚀 Installation
+## Installation
 
 Install the package via Composer:
 
@@ -42,7 +43,7 @@ This will:
 - Run the database migrations
 - Guide you through the setup process
 
-## ⚙️ Configuration
+## Configuration
 
 Add your SteadFast API credentials to your `.env` file:
 
@@ -82,6 +83,16 @@ STEADFAST_KEEP_LOGS_DAYS=30
 # Optional - Validation
 STEADFAST_STRICT_PHONE=true
 STEADFAST_REQUIRE_EMAIL=false
+
+# Optional - Fraud Checker (NEW)
+STEADFAST_FRAUD_CHECKER_ENABLED=false
+STEADFAST_FRAUD_CHECKER_EMAIL=your-merchant-email@example.com
+STEADFAST_FRAUD_CHECKER_PASSWORD=your-merchant-password
+STEADFAST_FRAUD_VERY_HIGH_THRESHOLD=75
+STEADFAST_FRAUD_HIGH_THRESHOLD=50
+STEADFAST_FRAUD_MEDIUM_THRESHOLD=25
+STEADFAST_FRAUD_CACHE_ENABLED=true
+STEADFAST_FRAUD_CACHE_TTL=3600
 ```
 
 Test your configuration:
@@ -90,7 +101,7 @@ Test your configuration:
 php artisan steadfast:test
 ```
 
-## 📖 Usage
+## Usage
 
 ### Basic Order Creation
 
@@ -248,7 +259,231 @@ if ($balance->isSuccessful()) {
 }
 ```
 
-## 🔧 Advanced Features
+### Fraud Checker (NEW Feature)
+
+Check customer reliability by analyzing their order history. This feature uses web scraping to access the Steadfast merchant panel and retrieve fraud statistics.
+
+#### Configuration
+
+First, enable and configure fraud checking in your `.env`:
+
+```env
+# Enable fraud checker
+STEADFAST_FRAUD_CHECKER_ENABLED=true
+STEADFAST_FRAUD_CHECKER_EMAIL=your-merchant-email@example.com
+STEADFAST_FRAUD_CHECKER_PASSWORD=your-merchant-password
+
+# Optional: Configure risk thresholds (percentages)
+STEADFAST_FRAUD_VERY_HIGH_THRESHOLD=75
+STEADFAST_FRAUD_HIGH_THRESHOLD=50
+STEADFAST_FRAUD_MEDIUM_THRESHOLD=25
+
+# Optional: Enable caching for fraud checks
+STEADFAST_FRAUD_CACHE_ENABLED=true
+STEADFAST_FRAUD_CACHE_TTL=3600
+```
+
+#### Basic Usage
+
+```php
+use SabitAhmad\SteadFast\SteadFast;
+use SabitAhmad\SteadFast\Exceptions\SteadfastException;
+
+$steadfast = new SteadFast();
+
+try {
+    // Check fraud status by phone number
+    $fraudCheck = $steadfast->checkFraud('01712345678');
+    
+    // Get order statistics
+    echo "Successful Orders: " . $fraudCheck->success;
+    echo "Cancelled Orders: " . $fraudCheck->cancel;
+    echo "Total Orders: " . $fraudCheck->total;
+    
+    // Get calculated rates
+    echo "Success Rate: " . $fraudCheck->getSuccessRate() . "%";
+    echo "Cancel Rate: " . $fraudCheck->getCancelRate() . "%";
+    
+    // Get risk assessment
+    echo "Risk Level: " . $fraudCheck->getRiskLevel();        // 'none', 'low', 'medium', 'high', 'very_high'
+    echo "Risk Description: " . $fraudCheck->getRiskDescription();
+    
+} catch (SteadfastException $e) {
+    echo "Error: " . $e->getMessage();
+}
+```
+
+#### Advanced Usage
+
+```php
+// Check if customer is risky (default threshold: 50% cancellation rate)
+if ($fraudCheck->isRisky()) {
+    echo "High-risk customer detected!";
+    // Require prepayment or decline order
+}
+
+// Use custom threshold
+if ($fraudCheck->isRisky(threshold: 30)) {
+    echo "Customer exceeds 30% cancellation rate";
+}
+
+// Make decisions based on risk level
+match ($fraudCheck->getRiskLevel()) {
+    'very_high' => $this->declineOrder($order),
+    'high' => $this->requirePrepayment($order),
+    'medium' => $this->assignToExperiencedCourier($order),
+    'low' => $this->processNormally($order),
+    'none' => $this->processWithPriority($order),
+};
+
+// Check if fraud check was successful
+if ($fraudCheck->isSuccessful()) {
+    echo "Fraud check completed successfully";
+} else {
+    echo "Error: " . $fraudCheck->error;
+}
+```
+
+#### Real-World Example
+
+```php
+public function validateCustomerBeforeOrder(string $phoneNumber, float $orderAmount)
+{
+    try {
+        $fraudCheck = $this->steadfast->checkFraud($phoneNumber);
+        
+        // New customer (no order history)
+        if ($fraudCheck->total === 0) {
+            if ($orderAmount > 5000) {
+                return [
+                    'approved' => false,
+                    'reason' => 'New customer with high-value order. Prepayment required.',
+                    'require_prepayment' => true,
+                ];
+            }
+            return ['approved' => true, 'note' => 'New customer'];
+        }
+        
+        // Experienced customer with good track record
+        if ($fraudCheck->getSuccessRate() >= 80) {
+            return [
+                'approved' => true,
+                'note' => 'Trusted customer',
+                'priority_processing' => true,
+            ];
+        }
+        
+        // High-risk customer
+        if ($fraudCheck->isRisky(threshold: 40)) {
+            return [
+                'approved' => false,
+                'reason' => "High cancellation rate: {$fraudCheck->getCancelRate()}%",
+                'customer_stats' => [
+                    'success' => $fraudCheck->success,
+                    'cancel' => $fraudCheck->cancel,
+                    'total' => $fraudCheck->total,
+                ],
+            ];
+        }
+        
+        // Medium-risk customer
+        return [
+            'approved' => true,
+            'note' => 'Medium risk - monitor closely',
+            'send_confirmation' => true,
+        ];
+        
+    } catch (SteadfastException $e) {
+        // Log error and continue without fraud check
+        Log::warning('Fraud check failed', [
+            'phone' => $phoneNumber,
+            'error' => $e->getMessage(),
+        ]);
+        
+        return ['approved' => true, 'note' => 'Fraud check unavailable'];
+    }
+}
+```
+
+#### Understanding Risk Levels
+
+The fraud checker automatically categorizes customers into risk levels:
+
+| Risk Level | Cancel Rate | Description | Recommendation |
+|-----------|-------------|-------------|----------------|
+| **Very High** | ≥ 75% | Customer cancels most orders | Consider declining |
+| **High** | 50-74% | High cancellation history | Require prepayment |
+| **Medium** | 25-49% | Moderate risk | Monitor closely |
+| **Low** | 1-24% | Occasional cancellations | Safe to proceed |
+| **None** | 0% | New or perfect record | Trustworthy |
+
+#### Phone Number Formats
+
+The fraud checker automatically normalizes phone numbers. Accepted formats:
+
+```php
+// Valid formats (automatically normalized):
+$fraudCheck = $steadfast->checkFraud('01712345678');    // Standard format (preferred)
+$fraudCheck = $steadfast->checkFraud('8801712345678');  // With country code 88
+$fraudCheck = $steadfast->checkFraud('+8801712345678'); // International format
+$fraudCheck = $steadfast->checkFraud('017 1234 5678');  // With spaces
+$fraudCheck = $steadfast->checkFraud('017-1234-5678');  // With dashes
+
+// Invalid formats (will throw exception):
+// '1234567890'        - Too short
+// '02171234567'       - Invalid prefix (must start with 01)
+// '01212345678'       - Second digit must be 3-9
+// '011234567890'      - Too long
+```
+
+**Valid Pattern:** Must be 11 digits starting with `01` followed by `3-9`, then 8 more digits.
+
+**Examples of valid phone numbers:**
+- `01712345678` (Grameenphone)
+- `01812345678` (Robi)
+- `01912345678` (Banglalink)
+- `01612345678` (Airtel)
+- `01512345678` (Teletalk)
+
+#### Error Handling
+
+```php
+use SabitAhmad\SteadFast\Exceptions\SteadfastException;
+
+try {
+    $fraudCheck = $steadfast->checkFraud($phoneNumber);
+} catch (SteadfastException $e) {
+    match ($e->getCode()) {
+        500 => throw new Exception('Fraud checker not enabled or configured'),
+        422 => throw new Exception('Invalid phone number format. Must be 01XXXXXXXXX (e.g., 01712345678)'),
+        default => throw new Exception('Fraud check failed: ' . $e->getMessage())
+    };
+}
+```
+
+#### Performance Considerations
+
+1. **Caching**: Enable fraud check caching to avoid repeated web scraping:
+   ```env
+   STEADFAST_FRAUD_CACHE_ENABLED=true
+   STEADFAST_FRAUD_CACHE_TTL=3600  # Cache for 1 hour
+   ```
+
+2. **Async Processing**: For high-traffic applications, consider checking fraud status asynchronously:
+   ```php
+   dispatch(function () use ($phoneNumber) {
+       $fraudCheck = app(SteadFast::class)->checkFraud($phoneNumber);
+       // Store results in database
+       FraudCheck::updateOrCreate(
+           ['phone_number' => $phoneNumber],
+           $fraudCheck->toArray()
+       );
+   });
+   ```
+
+3. **Rate Limiting**: The fraud checker performs web scraping which is slower than API calls. Use wisely and implement caching.
+
+## Advanced Features
 
 ### Event System (NEW)
 
@@ -356,7 +591,7 @@ Run dedicated workers:
 php artisan queue:work steadfast --queue=high-priority,default
 ```
 
-## 🛠️ Artisan Commands (NEW)
+## Artisan Commands
 
 ### Test API Connection
 
@@ -415,7 +650,7 @@ php artisan steadfast:cleanup
 php artisan steadfast:cleanup --force
 ```
 
-## 📊 Monitoring & Logging
+## Monitoring & Logging
 
 ### Database Statistics
 
@@ -461,21 +696,19 @@ SteadfastLog::recent(48)->get(); // Last 48 hours
 SteadfastLog::bulkOperations()->get();
 ```
 
-## 📋 API Endpoints Coverage
+## API Endpoints Coverage
 
 | Endpoint | Method | Description | Status | New Features |
-|----------|--------|-------------|--------|--------------|
-| `/create_order` | POST | Create single order | ✅ | Enhanced validation, all fields |
-| `/create_order/bulk-order` | POST | Create bulk orders | ✅ | Queue support, events, chunking |
-| `/status_by_cid/{id}` | GET | Check status by consignment ID | ✅ | Rich status objects, caching |
-| `/status_by_invoice/{invoice}` | GET | Check status by invoice | ✅ | Rich status objects, caching |
-| `/status_by_trackingcode/{code}` | GET | Check status by tracking code | ✅ | Rich status objects, caching |
-| `/get_balance` | GET | Get account balance | ✅ | Formatted output, caching |
-| `/create_return_request` | POST | Create return request | ✅ | **NEW** - Full implementation |
-| `/get_return_request/{id}` | GET | Get single return request | ✅ | **NEW** - Full implementation |
-| `/get_return_requests` | GET | Get all return requests | ✅ | **NEW** - Full implementation |
-
-## 🔍 Validation Rules
+|----------|--------|-------------|--------|--------------|  
+| `/create_order` | POST | Create single order | Yes | Enhanced validation, all fields |
+| `/create_order/bulk-order` | POST | Create bulk orders | Yes | Queue support, events, chunking |
+| `/status_by_cid/{id}` | GET | Check status by consignment ID | Yes | Rich status objects, caching |
+| `/status_by_invoice/{invoice}` | GET | Check status by invoice | Yes | Rich status objects, caching |
+| `/status_by_trackingcode/{code}` | GET | Check status by tracking code | Yes | Rich status objects, caching |
+| `/get_balance` | GET | Get account balance | Yes | Formatted output, caching |
+| `/create_return_request` | POST | Create return request | Yes | **NEW** - Full implementation |
+| `/get_return_request/{id}` | GET | Get single return request | Yes | **NEW** - Full implementation |
+| `/get_return_requests` | GET | Get all return requests | Yes | **NEW** - Full implementation |## Validation Rules
 
 The package includes comprehensive validation:
 
@@ -504,7 +737,7 @@ STEADFAST_MAX_ADDRESS_LENGTH=250   # Max address length
 STEADFAST_MAX_NAME_LENGTH=100      # Max name length
 ```
 
-## 🔒 Security Features
+## Security Features
 
 ### Sensitive Data Protection
 
@@ -518,7 +751,7 @@ STEADFAST_MAX_NAME_LENGTH=100      # Max name length
 - SQL injection prevention
 - XSS protection in logged data
 
-## ⚡ Performance Optimizations
+## Performance Optimizations
 
 ### Bulk Processing
 
@@ -541,7 +774,7 @@ STEADFAST_MAX_NAME_LENGTH=100      # Max name length
 - Retry logic with exponential backoff
 - Connection pooling
 
-## 🚨 Error Scenarios & Handling
+## Error Scenarios & Handling
 
 ### Common Issues & Solutions
 
@@ -575,7 +808,7 @@ try {
 }
 ```
 
-## 🔄 Migration from v1.x
+## Migration from v1.x
 
 If upgrading from an older version:
 
@@ -599,7 +832,7 @@ $response = $steadfast->bulkCreate($orders);
 echo $response->getSuccessRate(); // New methods available
 ```
 
-## 🧪 Testing
+## Testing
 
 Run the package tests:
 
@@ -613,30 +846,30 @@ Test your integration:
 php artisan steadfast:test
 ```
 
-## 📈 Changelog
+## Changelog
 
 Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
 
-## 🤝 Contributing
+## Contributing
 
 Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
 
-## 🔐 Security
+## Security
 
 Please review [our security policy](../../security/policy) on how to report security vulnerabilities.
 
-## 👥 Credits
+## Credits
 
 - [Sabit Ahmad](https://github.com/sabitahmadumid) - Package author and maintainer
 - [SteadFast Courier](https://steadfast.com.bd/) - API provider
 - [Laravel Community](https://laravel.com/) - Framework and inspiration
 - All contributors who help improve this package
 
-## 📄 License
+## License
 
 The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
 
-## 📞 Support
+## Support
 
 ### Getting Help
 
@@ -674,4 +907,4 @@ php artisan queue:failed
 
 ---
 
-**Happy shipping with SteadFast! 📦🚀**
+**Happy shipping with SteadFast!**
