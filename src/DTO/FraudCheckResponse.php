@@ -10,8 +10,7 @@ class FraudCheckResponse
         public readonly int $total,
         public readonly ?string $phoneNumber = null,
         public readonly ?string $error = null
-    ) {
-    }
+    ) {}
 
     /**
      * Create a FraudCheckResponse from an array.

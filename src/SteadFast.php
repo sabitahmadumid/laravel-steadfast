@@ -700,14 +700,15 @@ class SteadFast
 
     /**
      * Check fraud status for a phone number via web scraping
-     * 
-     * @param string $phoneNumber Customer phone number to check
+     *
+     * @param  string  $phoneNumber  Customer phone number to check
+     *
      * @throws SteadfastException
      */
     public function checkFraud(string $phoneNumber): FraudCheckResponse
     {
         // Validate fraud checker configuration
-        if (!$this->isFraudCheckerEnabled()) {
+        if (! $this->isFraudCheckerEnabled()) {
             throw SteadfastException::fraudCheckerNotEnabled();
         }
 
@@ -717,14 +718,14 @@ class SteadFast
         try {
             // Step 1: Fetch login page and extract CSRF token
             $loginPageResponse = Http::get('https://steadfast.com.bd/login');
-            
-            if (!$loginPageResponse->successful()) {
+
+            if (! $loginPageResponse->successful()) {
                 throw SteadfastException::fraudCheckerError('Failed to access Steadfast login page');
             }
 
             $csrfToken = $this->extractCsrfToken($loginPageResponse->body());
-            
-            if (!$csrfToken) {
+
+            if (! $csrfToken) {
                 throw SteadfastException::fraudCheckerError('CSRF token not found on login page');
             }
 
@@ -740,7 +741,7 @@ class SteadFast
                     'password' => $this->config['fraud_checker']['password'],
                 ]);
 
-            if (!($loginResponse->successful() || $loginResponse->redirect())) {
+            if (! ($loginResponse->successful() || $loginResponse->redirect())) {
                 $this->logFraudCheckRequest($phoneNumber, null, 'Login failed');
                 throw SteadfastException::fraudCheckerError('Login to Steadfast failed. Please check your credentials.');
             }
@@ -753,13 +754,13 @@ class SteadFast
             $fraudResponse = Http::withCookies($loginCookies, 'steadfast.com.bd')
                 ->get($fraudCheckUrl);
 
-            if (!$fraudResponse->successful()) {
+            if (! $fraudResponse->successful()) {
                 $this->performLogout($loginCookies);
                 throw SteadfastException::fraudCheckerError('Failed to fetch fraud data from Steadfast');
             }
 
             $fraudData = $fraudResponse->collect()->toArray();
-            
+
             $result = [
                 'success' => $fraudData['total_delivered'] ?? 0,
                 'cancel' => $fraudData['total_cancelled'] ?? 0,
@@ -787,17 +788,17 @@ class SteadFast
      */
     private function isFraudCheckerEnabled(): bool
     {
-        if (!isset($this->config['fraud_checker']['enabled']) || !$this->config['fraud_checker']['enabled']) {
+        if (! isset($this->config['fraud_checker']['enabled']) || ! $this->config['fraud_checker']['enabled']) {
             return false;
         }
 
-        return !empty($this->config['fraud_checker']['email']) 
-            && !empty($this->config['fraud_checker']['password']);
+        return ! empty($this->config['fraud_checker']['email'])
+            && ! empty($this->config['fraud_checker']['password']);
     }
 
     /**
      * Validate and normalize phone number
-     * 
+     *
      * @throws SteadfastException
      */
     private function validatePhoneNumber(string $phoneNumber): string
@@ -812,7 +813,7 @@ class SteadFast
         $phoneNumber = preg_replace('/^(\+?88)/', '', $phoneNumber);
 
         // Validate Bangladeshi phone number (must be 01 followed by 3-9, then 8 more digits)
-        if (!preg_match('/^01[3-9][0-9]{8}$/', $phoneNumber)) {
+        if (! preg_match('/^01[3-9][0-9]{8}$/', $phoneNumber)) {
             throw SteadfastException::invalidPhoneNumber($originalPhone);
         }
 
@@ -846,6 +847,7 @@ class SteadFast
         foreach ($cookieJar->toArray() as $cookie) {
             $cookies[$cookie['Name']] = $cookie['Value'];
         }
+
         return $cookies;
     }
 
@@ -871,7 +873,7 @@ class SteadFast
             }
         } catch (Exception $e) {
             // Log but don't throw - logout failures shouldn't break the main flow
-            Log::warning('Steadfast fraud checker logout failed: ' . $e->getMessage());
+            Log::warning('Steadfast fraud checker logout failed: '.$e->getMessage());
         }
     }
 
@@ -880,7 +882,7 @@ class SteadFast
      */
     private function logFraudCheckRequest(string $phoneNumber, ?array $result = null, ?string $error = null): void
     {
-        if (!$this->config['logging']['enabled']) {
+        if (! $this->config['logging']['enabled']) {
             return;
         }
 

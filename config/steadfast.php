@@ -114,14 +114,14 @@ return [
         'enabled' => env('STEADFAST_FRAUD_CHECKER_ENABLED', false),
         'email' => env('STEADFAST_FRAUD_CHECKER_EMAIL'),
         'password' => env('STEADFAST_FRAUD_CHECKER_PASSWORD'),
-        
+
         // Risk thresholds (percentage)
         'risk_thresholds' => [
             'very_high' => env('STEADFAST_FRAUD_VERY_HIGH_THRESHOLD', 75),
             'high' => env('STEADFAST_FRAUD_HIGH_THRESHOLD', 50),
             'medium' => env('STEADFAST_FRAUD_MEDIUM_THRESHOLD', 25),
         ],
-        
+
         // Cache fraud check results to reduce load
         'cache_enabled' => env('STEADFAST_FRAUD_CACHE_ENABLED', true),
         'cache_ttl' => env('STEADFAST_FRAUD_CACHE_TTL', 3600), // 1 hour
