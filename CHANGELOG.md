@@ -2,6 +2,24 @@
 
 All notable changes to `laravel-steadfast` will be documented in this file.
 
+## v2.1.0 - 2025-11-30
+
+### What's Changed
+
+* Bump dependabot/fetch-metadata from 2.3.0 to 2.4.0 by @dependabot[bot] in https://github.com/sabitahmadumid/laravel-steadfast/pull/1
+* Bump aglipanci/laravel-pint-action from 2.5 to 2.6 by @dependabot[bot] in https://github.com/sabitahmadumid/laravel-steadfast/pull/3
+* Bump actions/checkout from 4 to 5 by @dependabot[bot] in https://github.com/sabitahmadumid/laravel-steadfast/pull/4
+* Bump stefanzweifel/git-auto-commit-action from 5 to 6 by @dependabot[bot] in https://github.com/sabitahmadumid/laravel-steadfast/pull/2
+* Bump actions/checkout from 5 to 6 by @dependabot[bot] in https://github.com/sabitahmadumid/laravel-steadfast/pull/6
+* Bump stefanzweifel/git-auto-commit-action from 6 to 7 by @dependabot[bot] in https://github.com/sabitahmadumid/laravel-steadfast/pull/5
+
+### New Contributors
+
+* @dependabot[bot] made their first contribution in https://github.com/sabitahmadumid/laravel-steadfast/pull/1
+
+**Full Changelog**: https://github.com/sabitahmadumid/laravel-steadfast/compare/v2.0.0...v2.1.0.
+Fraud Checker: Customer reliability analysis via order history
+
 ## v2.0.0 - 2025-09-24
 
 ### 🚀 Major Release - Complete Package Rewrite
@@ -11,61 +29,74 @@ This is a major release with significant improvements, new features, and breakin
 ### ✨ New Features
 
 #### **Complete API Coverage**
+
 - **Return Requests API**: Full implementation of return request management
   - Create return requests by invoice, consignment ID, or tracking code
   - Get single return request details
   - Get all return requests with status filtering
   - Rich return status objects with helper methods
+  
 
 #### **Enhanced Order Management**
+
 - **Extended Order Fields**: Support for all SteadFast API fields
   - `alternative_phone` - Alternative contact number
   - `recipient_email` - Customer email address
   - `item_description` - Detailed item description
   - `total_lot` - Total number of items
   - `delivery_type` - Home delivery (0) or Point delivery (1)
+  
 - **Rich Response Objects**: Type-safe DTOs for all API responses
 - **Enhanced Validation**: Comprehensive validation with custom error messages
 
 #### **Advanced Bulk Processing**
+
 - **Event System**: Complete event-driven architecture
   - `BulkOrderStarted` - Fired when bulk processing begins
   - `BulkOrderCompleted` - Fired when bulk processing completes
   - `BulkOrderFailed` - Fired when bulk processing fails
-- **Improved Queue Management**: 
+  
+- **Improved Queue Management**:
   - Unique job IDs to prevent duplicates
   - Exponential backoff retry strategy
   - Job batching support
   - Enhanced error handling and recovery
+  
 
 #### **Intelligent Caching System**
+
 - **Response Caching**: Configurable caching for API responses
 - **Smart Cache Keys**: Endpoint-specific cache management
 - **Cache Invalidation**: Manual and automatic cache clearing
 - **Multi-Store Support**: Redis, Database, and File cache support
 
 #### **Comprehensive Monitoring & Logging**
+
 - **Enhanced Logging Model**: Advanced query scopes and statistics
 - **Performance Metrics**: Request duration tracking and success rates
 - **Automatic Log Cleanup**: Configurable log retention policies
 - **Detailed Statistics**: API usage analytics and monitoring
 
 #### **Artisan Commands**
+
 - **`steadfast:test`**: Test API connection and configuration
 - **`steadfast:stats`**: View comprehensive usage statistics
 - **`steadfast:cleanup`**: Clean up old logs and maintain database
 
 #### **Advanced Error Handling**
-- **Specific Exception Types**: 
+
+- **Specific Exception Types**:
   - `AuthenticationError` for credential issues
   - `ValidationError` for input validation failures
   - `RateLimitError` for API rate limiting
   - `NotFoundError` for missing resources
   - `ServiceUnavailable` for API downtime
+  
 - **Rich Error Context**: Detailed error information for debugging
 - **Retry Logic**: Automatic retry with configurable conditions
 
 #### **Security & Data Protection**
+
 - **Sensitive Data Filtering**: API keys and secrets filtered from logs
 - **Enhanced Validation**: Strict input validation with customizable rules
 - **Secure Logging**: Configurable request/response logging levels
@@ -73,18 +104,21 @@ This is a major release with significant improvements, new features, and breakin
 ### 🔧 Improvements
 
 #### **Performance Optimizations**
+
 - **Connection Management**: Persistent HTTP connections with pooling
 - **Memory Efficiency**: Optimized memory usage for large datasets
 - **Chunked Processing**: Efficient batch processing with configurable chunk sizes
 - **Lazy Loading**: On-demand resource loading for better performance
 
 #### **Developer Experience**
+
 - **Type Safety**: Full PHP 8.1+ type hints and return types
 - **Rich Documentation**: Comprehensive inline documentation
 - **Better Testing Tools**: Built-in commands for testing and debugging
 - **IDE Support**: Complete PHPDoc annotations for better IDE integration
 
 #### **Configuration Management**
+
 - **Extended Configuration**: 50+ configuration options
 - **Environment Variables**: Comprehensive .env support
 - **Validation Settings**: Configurable validation rules
@@ -93,18 +127,21 @@ This is a major release with significant improvements, new features, and breakin
 ### 🛠️ Technical Improvements
 
 #### **Code Quality**
+
 - **PHP 8.1+ Requirements**: Modern PHP features and improvements
 - **PSR Standards**: Full PSR-4 autoloading and PSR-12 coding standards
 - **Type Safety**: Strict typing throughout the codebase
 - **Error Handling**: Comprehensive exception handling
 
 #### **Architecture**
+
 - **Event-Driven Design**: Complete event system for monitoring
 - **Service Container**: Proper Laravel service container integration
 - **Dependency Injection**: Full DI support throughout the package
 - **Facade Pattern**: Clean facade implementation for easy usage
 
 #### **Database**
+
 - **Enhanced Migration**: Improved database schema with indexes
 - **Model Improvements**: Rich Eloquent model with scopes and methods
 - **Query Optimization**: Optimized database queries for better performance
@@ -144,6 +181,7 @@ For users upgrading from v1.x:
 - **5 Event Types**: Comprehensive event system
 - **15+ Exception Types**: Detailed error handling
 
+
 ---
 
 ## v1.0.0 - 2025-04-04
@@ -151,12 +189,15 @@ For users upgrading from v1.x:
 ### Initial Release
 
 #### Order Management
+
 - Basic `createOrder` method for single order creation
 - Basic `bulkCreate` method for bulk order processing
 - Order status checking by consignment ID, invoice, and tracking code
 
 #### Balance Management
+
 - Basic `getBalance` method to retrieve account balance
 
 #### HTTP Client
+
 - Basic HTTP client initialization with headers and timeout
