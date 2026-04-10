@@ -58,7 +58,6 @@ return [
     */
     'logging' => [
         'enabled' => env('STEADFAST_LOGGING', true),
-        'log_level' => env('STEADFAST_LOG_LEVEL', 'error'),
         'log_requests' => env('STEADFAST_LOG_REQUESTS', false),
         'log_responses' => env('STEADFAST_LOG_RESPONSES', true),
         'cleanup_logs' => env('STEADFAST_CLEANUP_LOGS', true),
@@ -74,30 +73,7 @@ return [
         'enabled' => env('STEADFAST_CACHE_ENABLED', false),
         'ttl' => env('STEADFAST_CACHE_TTL', 300), // 5 minutes
         'prefix' => env('STEADFAST_CACHE_PREFIX', 'steadfast'),
-        'store' => env('STEADFAST_CACHE_STORE', null), // null = default cache store
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Validation Configuration
-    |--------------------------------------------------------------------------
-    */
-    'validation' => [
-        'strict_phone' => env('STEADFAST_STRICT_PHONE', true),
-        'require_email' => env('STEADFAST_REQUIRE_EMAIL', false),
-        'max_invoice_length' => env('STEADFAST_MAX_INVOICE_LENGTH', 255),
-        'max_address_length' => env('STEADFAST_MAX_ADDRESS_LENGTH', 250),
-        'max_name_length' => env('STEADFAST_MAX_NAME_LENGTH', 100),
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Default Values
-    |--------------------------------------------------------------------------
-    */
-    'defaults' => [
-        'delivery_type' => env('STEADFAST_DEFAULT_DELIVERY_TYPE', 0), // 0 = home, 1 = point
-        'cod_amount' => env('STEADFAST_DEFAULT_COD_AMOUNT', 0),
+        'store' => env('STEADFAST_CACHE_STORE'),
     ],
 
     /*

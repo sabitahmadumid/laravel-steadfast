@@ -3,10 +3,9 @@
 namespace SabitAhmad\SteadFast;
 
 use Exception;
-use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use SabitAhmad\SteadFast\DTO\BalanceResponse;
 use SabitAhmad\SteadFast\DTO\BulkOrderResponse;
@@ -18,23 +17,36 @@ use SabitAhmad\SteadFast\DTO\ReturnResponse;
 use SabitAhmad\SteadFast\DTO\StatusResponse;
 use SabitAhmad\SteadFast\Exceptions\SteadfastException;
 use SabitAhmad\SteadFast\Jobs\ProcessBulkOrders;
-use SabitAhmad\SteadFast\Models\SteadfastLog;
-use Throwable;
+use SabitAhmad\SteadFast\Services\SteadfastFraudChecker;
+use SabitAhmad\SteadFast\Services\SteadfastHttpClient;
+use SabitAhmad\SteadFast\Services\SteadfastLogger;
 
 class SteadFast
 {
     protected array $config;
 
-    protected PendingRequest $httpClient;
+    protected SteadfastHttpClient $httpClient;
+
+    protected CacheRepository $cache;
+
+    protected SteadfastLogger $logger;
+
+    protected SteadfastFraudChecker $fraudChecker;
 
     /**
      * @throws SteadfastException
      */
-    public function __construct()
-    {
-        $this->validateConfig();
+    public function __construct(
+        ?SteadfastHttpClient $httpClient = null,
+        ?SteadfastLogger $logger = null,
+        ?SteadfastFraudChecker $fraudChecker = null
+    ) {
         $this->config = config('steadfast');
-        $this->initializeHttpClient();
+        $this->validateConfig();
+        $this->cache = $this->resolveCacheStore();
+        $this->logger = $logger ?? app(SteadfastLogger::class);
+        $this->httpClient = $httpClient ?? app(SteadfastHttpClient::class);
+        $this->fraudChecker = $fraudChecker ?? app(SteadfastFraudChecker::class);
     }
 
     /**
@@ -58,39 +70,13 @@ class SteadFast
         }
     }
 
-    private function initializeHttpClient(): void
+    private function resolveCacheStore(): CacheRepository
     {
-        $this->httpClient = Http::baseUrl($this->config['base_url'])
-            ->timeout($this->config['timeout'])
-            ->connectTimeout($this->config['connect_timeout'] ?? 10)
-            ->withHeaders([
-                'Api-Key' => $this->config['api_key'],
-                'Secret-Key' => $this->config['secret_key'],
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-                'User-Agent' => 'Laravel-SteadFast-Package/2.0',
-            ])
-            ->retry(
-                $this->config['retry']['times'],
-                $this->config['retry']['sleep'],
-                function ($exception, $request) {
-                    return $this->shouldRetry($exception);
-                }
-            );
-    }
+        $store = $this->config['cache']['store'] ?? null;
 
-    /**
-     * Determine if a request should be retried
-     */
-    private function shouldRetry(Throwable $exception): bool
-    {
-        if ($exception instanceof RequestException) {
-            $statusCode = $exception->response?->status();
-
-            return in_array($statusCode, $this->config['retry']['when'] ?? [500, 502, 503, 504, 429]);
-        }
-
-        return false;
+        return $store
+            ? Cache::store($store)
+            : Cache::store();
     }
 
     /**
@@ -103,13 +89,9 @@ class SteadFast
         try {
             $order->validate();
 
-            $response = $this->makeRequest(
-                endpoint: '/create_order',
-                data: $order->toArray(),
-                type: 'single_order'
-            );
+            $response = $this->httpClient->post('/create_order', $order->toArray(), 'single_order');
 
-            return OrderResponse::fromArray($this->handleResponse($response));
+            return OrderResponse::fromArray($this->httpClient->validateResponse($response));
         } catch (Exception $e) {
             $this->handleException($e, [
                 'order' => $order->toArray(),
@@ -127,30 +109,20 @@ class SteadFast
     {
         $cacheKey = $this->getCacheKey('balance');
 
-        if ($this->config['cache']['enabled'] && Cache::has($cacheKey)) {
-            $cached = Cache::get($cacheKey);
+        if ($this->config['cache']['enabled'] && $this->cache->has($cacheKey)) {
+            $cached = $this->cache->get($cacheKey);
 
             return BalanceResponse::fromArray($cached);
         }
 
         try {
-            $response = $this->httpClient
-                ->get('/get_balance')
-                ->throw()
-                ->json();
+            $response = $this->httpClient->get('/get_balance', 'balance_check');
 
-            $this->logRequest([
-                'type' => 'balance_check',
-                'request' => [],
-                'response' => $response,
-                'endpoint' => '/get_balance',
-                'status_code' => $response['status'] ?? 500,
-            ]);
-
-            $processedResponse = $this->handleResponse($response);
+            $processedResponse = $this->httpClient->validateResponse($response);
 
             if ($this->config['cache']['enabled']) {
-                Cache::put($cacheKey, $processedResponse, $this->config['cache']['ttl']);
+                $this->cache->put($cacheKey, $processedResponse, $this->config['cache']['ttl']);
+                $this->trackCacheKey($cacheKey);
             }
 
             return BalanceResponse::fromArray($processedResponse);
@@ -202,31 +174,24 @@ class SteadFast
 
         $cacheKey = $this->getCacheKey("status_{$type}_{$identifier}");
 
-        if ($this->config['cache']['enabled'] && Cache::has($cacheKey)) {
-            $cached = Cache::get($cacheKey);
+        if ($this->config['cache']['enabled'] && $this->cache->has($cacheKey)) {
+            $cached = $this->cache->get($cacheKey);
 
             return StatusResponse::fromArray($cached);
         }
 
         try {
-            $response = $this->httpClient
-                ->get($endpoints[$type].$identifier)
-                ->throw()
-                ->json();
-
-            $this->logRequest([
-                'type' => 'status_check',
-                'request' => ['identifier' => $identifier, 'type' => $type],
-                'response' => $response,
-                'endpoint' => $endpoints[$type],
-                'status_code' => $response['status'] ?? 500,
+            $response = $this->httpClient->get($endpoints[$type].$identifier, 'status_check', [
+                'identifier' => $identifier,
+                'type' => $type,
             ]);
 
-            $processedResponse = $this->handleResponse($response);
+            $processedResponse = $this->httpClient->validateResponse($response);
 
             if ($this->config['cache']['enabled']) {
                 // Cache status for shorter time as it changes frequently
-                Cache::put($cacheKey, $processedResponse, min($this->config['cache']['ttl'], 60));
+                $this->cache->put($cacheKey, $processedResponse, min($this->config['cache']['ttl'], 60));
+                $this->trackCacheKey($cacheKey);
             }
 
             return StatusResponse::fromArray($processedResponse);
@@ -247,13 +212,9 @@ class SteadFast
     public function createReturnRequest(ReturnRequest $returnRequest): ReturnResponse
     {
         try {
-            $response = $this->makeRequest(
-                endpoint: '/create_return_request',
-                data: $returnRequest->toArray(),
-                type: 'return_request'
-            );
+            $response = $this->httpClient->post('/create_return_request', $returnRequest->toArray(), 'return_request');
 
-            return ReturnResponse::fromArray($this->handleResponse($response));
+            return ReturnResponse::fromArray($this->httpClient->validateResponse($response));
         } catch (Exception $e) {
             $this->handleException($e, [
                 'return_request' => $returnRequest->toArray(),
@@ -270,20 +231,9 @@ class SteadFast
     public function getReturnRequest(int $id): ReturnResponse
     {
         try {
-            $response = $this->httpClient
-                ->get("/get_return_request/{$id}")
-                ->throw()
-                ->json();
+            $response = $this->httpClient->get("/get_return_request/{$id}", 'get_return_request', ['id' => $id]);
 
-            $this->logRequest([
-                'type' => 'get_return_request',
-                'request' => ['id' => $id],
-                'response' => $response,
-                'endpoint' => '/get_return_request',
-                'status_code' => $response['status'] ?? 500,
-            ]);
-
-            return ReturnResponse::fromArray($this->handleResponse($response));
+            return ReturnResponse::fromArray($this->httpClient->validateResponse($response));
         } catch (Exception $e) {
             $this->handleException($e, [
                 'id' => $id,
@@ -300,20 +250,9 @@ class SteadFast
     public function getReturnRequests(): array
     {
         try {
-            $response = $this->httpClient
-                ->get('/get_return_requests')
-                ->throw()
-                ->json();
+            $response = $this->httpClient->get('/get_return_requests', 'get_return_requests');
 
-            $this->logRequest([
-                'type' => 'get_return_requests',
-                'request' => [],
-                'response' => $response,
-                'endpoint' => '/get_return_requests',
-                'status_code' => $response['status'] ?? 500,
-            ]);
-
-            $processedResponse = $this->handleResponse($response);
+            $processedResponse = $this->httpClient->validateResponse($response);
 
             // Convert each return request to ReturnResponse object
             return array_map(
@@ -340,7 +279,7 @@ class SteadFast
             'context' => $context,
         ];
 
-        $this->logRequest($logData);
+        $this->logger->log($logData);
 
         if ($e instanceof SteadfastException) {
             // Re-throw with additional context
@@ -416,65 +355,6 @@ class SteadFast
         return $this->processBulkOrders($validatedOrders);
     }
 
-    /**
-     * @throws SteadfastException
-     */
-    private function handleResponse(array $response): array
-    {
-        if (! isset($response['status'])) {
-            throw SteadfastException::apiError('Invalid response format: missing status field', $response);
-        }
-
-        if ($response['status'] !== 200) {
-            $message = $response['message'] ?? 'Unknown API error';
-            throw SteadfastException::apiError($message, $response);
-        }
-
-        return $response;
-    }
-
-    private function logRequest(array $logData): void
-    {
-        if (! $this->config['logging']['enabled']) {
-            return;
-        }
-
-        // Filter sensitive data from logs
-        $filteredRequest = $this->filterSensitiveData($logData['request'] ?? []);
-        $filteredResponse = $this->config['logging']['log_responses']
-            ? $this->filterSensitiveData($logData['response'] ?? [])
-            : null;
-
-        try {
-            SteadfastLog::create([
-                'type' => $logData['type'],
-                'request' => $this->config['logging']['log_requests'] ? $filteredRequest : [],
-                'response' => $filteredResponse,
-                'endpoint' => $logData['endpoint'],
-                'status_code' => $logData['status_code'],
-                'error' => $logData['error'] ?? null,
-                'created_at' => now(),
-            ]);
-        } catch (Exception $e) {
-            Log::error('Steadfast logging failed: '.$e->getMessage(), [
-                'original_log_data' => $logData,
-            ]);
-        }
-    }
-
-    private function filterSensitiveData(array $data): array
-    {
-        $sensitive = ['Api-Key', 'Secret-Key', 'api_key', 'secret_key', 'password', 'token'];
-
-        foreach ($sensitive as $key) {
-            if (isset($data[$key])) {
-                $data[$key] = '***FILTERED***';
-            }
-        }
-
-        return $data;
-    }
-
     protected function validateBulkOrders(array $orders): array
     {
         $validOrders = [];
@@ -508,8 +388,8 @@ class SteadFast
             }
         }
 
-        if (! empty($errors) && config('steadfast.logging.enabled')) {
-            $this->logRequest([
+        if (! empty($errors) && $this->config['logging']['enabled']) {
+            $this->logger->log([
                 'type' => 'bulk_validation_errors',
                 'request' => ['total_orders' => count($orders), 'valid_orders' => count($validOrders)],
                 'response' => ['errors' => $errors],
@@ -531,10 +411,10 @@ class SteadFast
             $job->onConnection($this->config['bulk']['queue_connection']);
         }
 
-        $this->logRequest([
+        $this->logger->log([
             'type' => 'bulk_job_dispatched',
             'request' => ['order_count' => count($orders)],
-            'response' => ['job_id' => $job->getJobId()],
+            'response' => ['queued' => true],
             'endpoint' => 'internal',
             'status_code' => 200,
         ]);
@@ -543,7 +423,6 @@ class SteadFast
             'status' => 'queued',
             'message' => 'Bulk orders processing has been queued for background processing',
             'order_count' => count($orders),
-            'job_id' => $job->getJobId(),
         ]);
     }
 
@@ -551,8 +430,6 @@ class SteadFast
     {
         $chunks = array_chunk($orders, $this->config['bulk']['chunk_size']);
         $allResponses = [];
-        $errors = [];
-
         foreach ($chunks as $chunkIndex => $chunk) {
             try {
                 // Convert OrderRequest objects to arrays for API
@@ -560,21 +437,15 @@ class SteadFast
                     return $order instanceof OrderRequest ? $order->toArray() : $order;
                 }, $chunk);
 
-                $response = $this->makeRequest(
-                    endpoint: '/create_order/bulk-order',
-                    data: ['data' => json_encode($orderData)], // API expects JSON encoded data
-                    type: 'bulk_order'
+                $response = $this->httpClient->post(
+                    '/create_order/bulk-order',
+                    ['data' => json_encode($orderData)],
+                    'bulk_order'
                 );
 
                 $processedResponse = $this->handleBulkResponse($response);
                 $allResponses = array_merge($allResponses, $processedResponse['data']);
             } catch (Exception $e) {
-                $errors[] = [
-                    'chunk_index' => $chunkIndex,
-                    'chunk_size' => count($chunk),
-                    'error' => $e->getMessage(),
-                ];
-
                 // Add error entries for each order in failed chunk
                 foreach ($chunk as $order) {
                     $allResponses[] = [
@@ -597,46 +468,6 @@ class SteadFast
         return BulkOrderResponse::fromApiResponse($allResponses);
     }
 
-    protected function makeRequest(string $endpoint, array $data, string $type): array
-    {
-        $startTime = microtime(true);
-
-        try {
-            $response = $this->httpClient
-                ->post($endpoint, $data)
-                ->throw()
-                ->json();
-
-            $duration = microtime(true) - $startTime;
-
-            $this->logRequest([
-                'type' => $type,
-                'request' => $data,
-                'response' => $response,
-                'endpoint' => $endpoint,
-                'status_code' => $response['status'] ?? 500,
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
-
-            return $response;
-        } catch (RequestException $e) {
-            $duration = microtime(true) - $startTime;
-            $responseBody = $e->response?->json() ?? [];
-
-            $this->logRequest([
-                'type' => $type.'_error',
-                'request' => $data,
-                'response' => $responseBody,
-                'endpoint' => $endpoint,
-                'status_code' => $e->response?->status() ?? 500,
-                'duration_ms' => round($duration * 1000, 2),
-                'error' => $e->getMessage(),
-            ]);
-
-            throw $e;
-        }
-    }
-
     /**
      * @throws SteadfastException
      */
@@ -652,7 +483,7 @@ class SteadFast
         }
 
         // Fallback for wrapped responses
-        $processed = $this->handleResponse($response);
+        $processed = $this->httpClient->validateResponse($response);
 
         return [
             'status' => 'success',
@@ -681,13 +512,22 @@ class SteadFast
         }
 
         if ($key) {
-            return Cache::forget($this->getCacheKey($key));
+            $cacheKey = $this->getCacheKey($key);
+            $forgotten = $this->cache->forget($cacheKey);
+            $this->untrackCacheKey($cacheKey);
+
+            return $forgotten;
         }
 
-        // Clear all steadfast cache
-        $prefix = $this->config['cache']['prefix'] ?? 'steadfast';
+        $cleared = false;
 
-        return Cache::flush(); // Note: This flushes all cache, might want to implement prefix-based clearing
+        foreach ($this->getTrackedCacheKeys() as $trackedKey) {
+            $cleared = $this->cache->forget($trackedKey) || $cleared;
+        }
+
+        $this->cache->forget($this->getCacheKey('_tracked_keys'));
+
+        return $cleared;
     }
 
     /**
@@ -698,202 +538,42 @@ class SteadFast
         return $this->config;
     }
 
-    /**
-     * Check fraud status for a phone number via web scraping
-     *
-     * @param  string  $phoneNumber  Customer phone number to check
-     *
-     * @throws SteadfastException
-     */
-    public function checkFraud(string $phoneNumber): FraudCheckResponse
+    private function getTrackedCacheKeys(): array
     {
-        // Validate fraud checker configuration
-        if (! $this->isFraudCheckerEnabled()) {
-            throw SteadfastException::fraudCheckerNotEnabled();
-        }
-
-        // Validate phone number
-        $phoneNumber = $this->validatePhoneNumber($phoneNumber);
-
-        try {
-            // Step 1: Fetch login page and extract CSRF token
-            $loginPageResponse = Http::get('https://steadfast.com.bd/login');
-
-            if (! $loginPageResponse->successful()) {
-                throw SteadfastException::fraudCheckerError('Failed to access Steadfast login page');
-            }
-
-            $csrfToken = $this->extractCsrfToken($loginPageResponse->body());
-
-            if (! $csrfToken) {
-                throw SteadfastException::fraudCheckerError('CSRF token not found on login page');
-            }
-
-            // Convert cookies for login
-            $cookies = $this->convertCookies($loginPageResponse->cookies());
-
-            // Step 2: Perform login
-            $loginResponse = Http::withCookies($cookies, 'steadfast.com.bd')
-                ->asForm()
-                ->post('https://steadfast.com.bd/login', [
-                    '_token' => $csrfToken,
-                    'email' => $this->config['fraud_checker']['email'],
-                    'password' => $this->config['fraud_checker']['password'],
-                ]);
-
-            if (! ($loginResponse->successful() || $loginResponse->redirect())) {
-                $this->logFraudCheckRequest($phoneNumber, null, 'Login failed');
-                throw SteadfastException::fraudCheckerError('Login to Steadfast failed. Please check your credentials.');
-            }
-
-            // Update cookies after login
-            $loginCookies = $this->convertCookies($loginResponse->cookies());
-
-            // Step 3: Fetch fraud data
-            $fraudCheckUrl = "https://steadfast.com.bd/user/frauds/check/{$phoneNumber}";
-            $fraudResponse = Http::withCookies($loginCookies, 'steadfast.com.bd')
-                ->get($fraudCheckUrl);
-
-            if (! $fraudResponse->successful()) {
-                $this->performLogout($loginCookies);
-                throw SteadfastException::fraudCheckerError('Failed to fetch fraud data from Steadfast');
-            }
-
-            $fraudData = $fraudResponse->collect()->toArray();
-
-            $result = [
-                'success' => $fraudData['total_delivered'] ?? 0,
-                'cancel' => $fraudData['total_cancelled'] ?? 0,
-                'total' => ($fraudData['total_delivered'] ?? 0) + ($fraudData['total_cancelled'] ?? 0),
-                'phone_number' => $phoneNumber,
-            ];
-
-            // Step 4: Logout
-            $this->performLogout($loginCookies);
-
-            // Log the successful fraud check
-            $this->logFraudCheckRequest($phoneNumber, $result);
-
-            return FraudCheckResponse::fromArray($result);
-        } catch (SteadfastException $e) {
-            throw $e;
-        } catch (Exception $e) {
-            $this->logFraudCheckRequest($phoneNumber, null, $e->getMessage());
-            throw SteadfastException::fraudCheckerError($e->getMessage(), $e);
-        }
+        return $this->cache->get($this->getCacheKey('_tracked_keys'), []);
     }
 
-    /**
-     * Check if fraud checker is enabled and configured
-     */
-    private function isFraudCheckerEnabled(): bool
+    private function trackCacheKey(string $cacheKey): void
     {
-        if (! isset($this->config['fraud_checker']['enabled']) || ! $this->config['fraud_checker']['enabled']) {
-            return false;
-        }
+        $trackedKeys = $this->getTrackedCacheKeys();
 
-        return ! empty($this->config['fraud_checker']['email'])
-            && ! empty($this->config['fraud_checker']['password']);
-    }
-
-    /**
-     * Validate and normalize phone number
-     *
-     * @throws SteadfastException
-     */
-    private function validatePhoneNumber(string $phoneNumber): string
-    {
-        // Store original for error message
-        $originalPhone = $phoneNumber;
-
-        // Remove any whitespace and dashes
-        $phoneNumber = preg_replace('/[\s\-]+/', '', $phoneNumber);
-
-        // Remove country code prefix if present (+88 or 88)
-        $phoneNumber = preg_replace('/^(\+?88)/', '', $phoneNumber);
-
-        // Validate Bangladeshi phone number (must be 01 followed by 3-9, then 8 more digits)
-        if (! preg_match('/^01[3-9][0-9]{8}$/', $phoneNumber)) {
-            throw SteadfastException::invalidPhoneNumber($originalPhone);
-        }
-
-        return $phoneNumber;
-    }
-
-    /**
-     * Extract CSRF token from HTML
-     */
-    private function extractCsrfToken(string $html): ?string
-    {
-        // Try to match input token
-        if (preg_match('/<input type="hidden" name="_token" value="(.*?)"/', $html, $matches)) {
-            return $matches[1];
-        }
-
-        // Try to match meta token
-        if (preg_match('/<meta name="csrf-token" content="(.*?)"/', $html, $matches)) {
-            return $matches[1];
-        }
-
-        return null;
-    }
-
-    /**
-     * Convert CookieJar to array for HTTP requests
-     */
-    private function convertCookies($cookieJar): array
-    {
-        $cookies = [];
-        foreach ($cookieJar->toArray() as $cookie) {
-            $cookies[$cookie['Name']] = $cookie['Value'];
-        }
-
-        return $cookies;
-    }
-
-    /**
-     * Perform logout from Steadfast
-     */
-    private function performLogout(array $cookies): void
-    {
-        try {
-            $logoutPageResponse = Http::withCookies($cookies, 'steadfast.com.bd')
-                ->get('https://steadfast.com.bd/user/frauds/check');
-
-            if ($logoutPageResponse->successful()) {
-                $csrfToken = $this->extractCsrfToken($logoutPageResponse->body());
-
-                if ($csrfToken) {
-                    Http::withCookies($cookies, 'steadfast.com.bd')
-                        ->asForm()
-                        ->post('https://steadfast.com.bd/logout', [
-                            '_token' => $csrfToken,
-                        ]);
-                }
-            }
-        } catch (Exception $e) {
-            // Log but don't throw - logout failures shouldn't break the main flow
-            Log::warning('Steadfast fraud checker logout failed: '.$e->getMessage());
-        }
-    }
-
-    /**
-     * Log fraud check request
-     */
-    private function logFraudCheckRequest(string $phoneNumber, ?array $result = null, ?string $error = null): void
-    {
-        if (! $this->config['logging']['enabled']) {
+        if (in_array($cacheKey, $trackedKeys, true)) {
             return;
         }
 
-        $this->logRequest([
-            'type' => 'fraud_check',
-            'request' => ['phone_number' => $phoneNumber],
-            'response' => $result,
-            'endpoint' => '/user/frauds/check',
-            'status_code' => $error ? 500 : 200,
-            'error' => $error,
-        ]);
+        $trackedKeys[] = $cacheKey;
+        $this->cache->forever($this->getCacheKey('_tracked_keys'), $trackedKeys);
+    }
+
+    private function untrackCacheKey(string $cacheKey): void
+    {
+        $trackedKeys = array_values(array_filter(
+            $this->getTrackedCacheKeys(),
+            fn (string $trackedKey): bool => $trackedKey !== $cacheKey
+        ));
+
+        if ($trackedKeys === []) {
+            $this->cache->forget($this->getCacheKey('_tracked_keys'));
+
+            return;
+        }
+
+        $this->cache->forever($this->getCacheKey('_tracked_keys'), $trackedKeys);
+    }
+
+    public function checkFraud(string $phoneNumber): FraudCheckResponse
+    {
+        return $this->fraudChecker->check($phoneNumber);
     }
 
     /**

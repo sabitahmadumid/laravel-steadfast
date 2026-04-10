@@ -140,22 +140,22 @@ class SteadfastLog extends Model
      */
     public static function getStats(int $hours = 24): array
     {
-        $query = static::recent($hours);
+        $baseQuery = static::query()->recent($hours);
 
         return [
-            'total' => $query->count(),
-            'successful' => $query->successful()->count(),
-            'errors' => $query->errors()->count(),
-            'bulk_operations' => $query->bulkOperations()->count(),
-            'average_duration' => $query->whereNotNull('response->duration_ms')
+            'total' => (clone $baseQuery)->count(),
+            'successful' => (clone $baseQuery)->successful()->count(),
+            'errors' => (clone $baseQuery)->errors()->count(),
+            'bulk_operations' => (clone $baseQuery)->bulkOperations()->count(),
+            'average_duration' => (clone $baseQuery)->whereNotNull('response->duration_ms')
                 ->avg('response->duration_ms'),
-            'endpoints' => $query->groupBy('endpoint')
+            'endpoints' => (clone $baseQuery)->groupBy('endpoint')
                 ->selectRaw('endpoint, count(*) as count')
                 ->orderByDesc('count')
                 ->limit(10)
                 ->pluck('count', 'endpoint')
                 ->toArray(),
-            'error_types' => $query->errors()
+            'error_types' => (clone $baseQuery)->errors()
                 ->groupBy('status_code')
                 ->selectRaw('status_code, count(*) as count')
                 ->orderByDesc('count')
@@ -169,10 +169,6 @@ class SteadfastLog extends Model
      */
     public static function cleanup(): int
     {
-        if (! config('steadfast.logging.cleanup_logs', true)) {
-            return 0;
-        }
-
         $keepDays = config('steadfast.logging.keep_logs_days', 30);
 
         return static::where('created_at', '<=', now()->subDays($keepDays))->delete();

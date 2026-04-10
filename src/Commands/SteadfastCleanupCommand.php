@@ -13,12 +13,6 @@ class SteadfastCleanupCommand extends Command
 
     public function handle(): void
     {
-        if (! config('steadfast.logging.cleanup_logs', true)) {
-            $this->error('Log cleanup is disabled in configuration.');
-
-            return;
-        }
-
         $keepDays = config('steadfast.logging.keep_logs_days', 30);
         $oldLogsCount = SteadfastLog::where('created_at', '<=', now()->subDays($keepDays))->count();
 

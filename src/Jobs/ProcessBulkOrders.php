@@ -3,28 +3,26 @@
 namespace SabitAhmad\SteadFast\Jobs;
 
 use Exception;
-use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use SabitAhmad\SteadFast\DTO\BulkOrderResponse;
 use SabitAhmad\SteadFast\DTO\OrderRequest;
 use SabitAhmad\SteadFast\Events\BulkOrderCompleted;
 use SabitAhmad\SteadFast\Events\BulkOrderFailed;
 use SabitAhmad\SteadFast\Events\BulkOrderStarted;
 use SabitAhmad\SteadFast\Exceptions\SteadfastException;
-use SabitAhmad\SteadFast\Models\SteadfastLog;
+use SabitAhmad\SteadFast\Services\SteadfastLogger;
 use SabitAhmad\SteadFast\SteadFast;
 use Throwable;
 
-class ProcessBulkOrders implements ShouldBeUnique, ShouldQueue
+class ProcessBulkOrders implements ShouldQueue
 {
-    use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use InteractsWithQueue, Queueable, SerializesModels;
 
     /**
      * The maximum number of times the job may be attempted.
@@ -54,7 +52,7 @@ class ProcessBulkOrders implements ShouldBeUnique, ShouldQueue
     public function __construct(array $orders)
     {
         $this->orders = $orders;
-        $this->uniqueId = md5(serialize($orders).time());
+        $this->uniqueId = (string) Str::uuid();
 
         // Get configuration values
         $config = config('steadfast.bulk', []);
@@ -63,29 +61,13 @@ class ProcessBulkOrders implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * Get the unique ID for the job.
-     */
-    public function uniqueId(): string
-    {
-        return 'bulk_orders_'.$this->uniqueId;
-    }
-
-    /**
      * @throws SteadfastException
      */
-    public function handle(SteadFast $steadFast): void
+    public function handle(SteadFast $steadFast, SteadfastLogger $logger): void
     {
-        // Skip if job is part of a batch that has been cancelled
-        if ($this->batch()?->cancelled()) {
-            return;
-        }
+        $this->logJobStart($logger);
 
-        $this->logJobStart();
-
-        // Fire event for job start
-        if (class_exists('SabitAhmad\SteadFast\Events\BulkOrderStarted')) {
-            Event::dispatch(new BulkOrderStarted($this->orders, $this->uniqueId));
-        }
+        event(new BulkOrderStarted($this->orders, $this->uniqueId));
 
         try {
             $response = $steadFast->processBulkOrders($this->orders);
@@ -99,50 +81,42 @@ class ProcessBulkOrders implements ShouldBeUnique, ShouldQueue
                 );
             }
 
-            $this->logSuccess($response);
+            $this->logSuccess($logger, $response);
 
-            // Fire event for job completion
-            if (class_exists('SabitAhmad\SteadFast\Events\BulkOrderCompleted')) {
-                Event::dispatch(new BulkOrderCompleted($response, $this->uniqueId));
-            }
+            event(new BulkOrderCompleted($response, $this->uniqueId));
 
         } catch (SteadfastException $e) {
-            $this->handleSteadfastException($e);
+            $this->handleSteadfastException($logger, $e);
         } catch (Exception $e) {
-            $this->handleGenericException($e);
+            $this->handleGenericException($logger, $e);
         }
     }
 
-    protected function logJobStart(): void
+    protected function logJobStart(SteadfastLogger $logger): void
     {
-        if (config('steadfast.logging.enabled')) {
-            SteadfastLog::create([
-                'type' => 'bulk_job_start',
-                'request' => [
-                    'order_count' => count($this->orders),
-                    'unique_id' => $this->uniqueId,
-                    'job_id' => $this->job?->getJobId(),
-                    'queue' => $this->queue,
-                    'attempts' => $this->attempts(),
-                ],
-                'response' => null,
-                'endpoint' => 'internal',
-                'status_code' => 200,
-            ]);
-        }
+        $logger->log([
+            'type' => 'bulk_job_start',
+            'request' => [
+                'order_count' => count($this->orders),
+                'unique_id' => $this->uniqueId,
+                'job_id' => $this->job?->getJobId(),
+                'queue' => $this->queue,
+                'attempts' => $this->attempts(),
+            ],
+            'response' => null,
+            'endpoint' => 'internal',
+            'status_code' => 200,
+        ]);
     }
 
     /**
      * @throws SteadfastException
      */
-    protected function handleSteadfastException(SteadfastException $e): void
+    protected function handleSteadfastException(SteadfastLogger $logger, SteadfastException $e): void
     {
-        $this->logError($e);
+        $this->logError($logger, $e);
 
-        // Fire error event
-        if (class_exists('SabitAhmad\SteadFast\Events\BulkOrderFailed')) {
-            Event::dispatch(new BulkOrderFailed($e, $this->orders, $this->uniqueId));
-        }
+        event(new BulkOrderFailed($e, $this->orders, $this->uniqueId));
 
         if ($this->attempts() >= $this->tries) {
             $this->fail($e);
@@ -155,40 +129,35 @@ class ProcessBulkOrders implements ShouldBeUnique, ShouldQueue
         $this->release($delay);
     }
 
-    protected function handleGenericException(Exception $e): void
+    protected function handleGenericException(SteadfastLogger $logger, Exception $e): void
     {
-        $this->logError($e);
+        $this->logError($logger, $e);
 
-        // Fire error event
-        if (class_exists('SabitAhmad\SteadFast\Events\BulkOrderFailed')) {
-            Event::dispatch(new BulkOrderFailed($e, $this->orders, $this->uniqueId));
-        }
+        event(new BulkOrderFailed($e, $this->orders, $this->uniqueId));
 
         $this->fail($e);
     }
 
-    private function logError(Throwable $e): void
+    private function logError(SteadfastLogger $logger, Throwable $e): void
     {
-        if (config('steadfast.logging.enabled')) {
-            SteadfastLog::create([
-                'type' => 'bulk_job_error',
-                'request' => [
-                    'order_count' => count($this->orders),
-                    'unique_id' => $this->uniqueId,
-                    'job_id' => $this->job?->getJobId(),
-                    'attempts' => $this->attempts(),
-                    'orders' => array_map(function ($order) {
-                        return $order instanceof OrderRequest
-                            ? ['invoice' => $order->invoice, 'cod_amount' => $order->cod_amount]
-                            : 'Invalid order';
-                    }, array_slice($this->orders, 0, 5)), // Log first 5 orders for debugging
-                ],
-                'response' => $e instanceof SteadfastException ? $e->getContext() : [],
-                'endpoint' => 'internal',
-                'status_code' => $e->getCode() ?: 500,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        $logger->log([
+            'type' => 'bulk_job_error',
+            'request' => [
+                'order_count' => count($this->orders),
+                'unique_id' => $this->uniqueId,
+                'job_id' => $this->job?->getJobId(),
+                'attempts' => $this->attempts(),
+                'orders' => array_map(function ($order) {
+                    return $order instanceof OrderRequest
+                        ? ['invoice' => $order->invoice, 'cod_amount' => $order->cod_amount]
+                        : 'Invalid order';
+                }, array_slice($this->orders, 0, 5)),
+            ],
+            'response' => $e instanceof SteadfastException ? $e->getContext() : [],
+            'endpoint' => 'internal',
+            'status_code' => $e->getCode() ?: 500,
+            'error' => $e->getMessage(),
+        ]);
     }
 
     public function failed(Throwable $exception): void
@@ -204,21 +173,18 @@ class ProcessBulkOrders implements ShouldBeUnique, ShouldQueue
             }, $this->orders),
         ]);
 
-        // Log final failure
-        if (config('steadfast.logging.enabled')) {
-            SteadfastLog::create([
-                'type' => 'bulk_job_failed',
-                'request' => [
-                    'order_count' => count($this->orders),
-                    'unique_id' => $this->uniqueId,
-                    'job_id' => $this->job?->getJobId(),
-                ],
-                'response' => null,
-                'endpoint' => 'internal',
-                'status_code' => $exception->getCode() ?: 500,
-                'error' => $exception->getMessage(),
-            ]);
-        }
+        app(SteadfastLogger::class)->log([
+            'type' => 'bulk_job_failed',
+            'request' => [
+                'order_count' => count($this->orders),
+                'unique_id' => $this->uniqueId,
+                'job_id' => $this->job?->getJobId(),
+            ],
+            'response' => null,
+            'endpoint' => 'internal',
+            'status_code' => $exception->getCode() ?: 500,
+            'error' => $exception->getMessage(),
+        ]);
     }
 
     public function displayName(): string
@@ -236,43 +202,27 @@ class ProcessBulkOrders implements ShouldBeUnique, ShouldQueue
         ];
     }
 
-    private function logSuccess(BulkOrderResponse $response): void
+    public static function dispatch(array $orders): mixed
     {
-        if (config('steadfast.logging.enabled')) {
-            SteadfastLog::create([
-                'type' => 'bulk_job_success',
-                'request' => [
-                    'order_count' => count($this->orders),
-                    'unique_id' => $this->uniqueId,
-                    'job_id' => $this->job?->getJobId(),
-                ],
-                'response' => [
-                    'success_count' => $response->success_count,
-                    'error_count' => $response->error_count,
-                    'success_rate' => $response->getSuccessRate(),
-                ],
-                'endpoint' => 'internal',
-                'status_code' => 200,
-                'created_at' => now(),
-            ]);
-        }
+        return app(Dispatcher::class)->dispatch(new self($orders));
     }
 
-    /**
-     * Get order summary for logging
-     */
-    private function getOrderSummary(): array
+    private function logSuccess(SteadfastLogger $logger, BulkOrderResponse $response): void
     {
-        return array_map(function ($order) {
-            if ($order instanceof OrderRequest) {
-                return [
-                    'invoice' => $order->invoice,
-                    'cod_amount' => $order->cod_amount,
-                    'delivery_type' => $order->delivery_type,
-                ];
-            }
-
-            return 'Invalid order type';
-        }, array_slice($this->orders, 0, 10)); // Log first 10 orders
+        $logger->log([
+            'type' => 'bulk_job_success',
+            'request' => [
+                'order_count' => count($this->orders),
+                'unique_id' => $this->uniqueId,
+                'job_id' => $this->job?->getJobId(),
+            ],
+            'response' => [
+                'success_count' => $response->success_count,
+                'error_count' => $response->error_count,
+                'success_rate' => $response->getSuccessRate(),
+            ],
+            'endpoint' => 'internal',
+            'status_code' => 200,
+        ]);
     }
 }

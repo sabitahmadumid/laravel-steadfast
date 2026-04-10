@@ -2,9 +2,14 @@
 
 namespace SabitAhmad\SteadFast;
 
+use Illuminate\Http\Client\Factory as HttpFactory;
+use Psr\Log\LoggerInterface;
 use SabitAhmad\SteadFast\Commands\SteadfastCleanupCommand;
 use SabitAhmad\SteadFast\Commands\SteadfastStatsCommand;
 use SabitAhmad\SteadFast\Commands\SteadfastTestCommand;
+use SabitAhmad\SteadFast\Services\SteadfastFraudChecker;
+use SabitAhmad\SteadFast\Services\SteadfastHttpClient;
+use SabitAhmad\SteadFast\Services\SteadfastLogger;
 use Spatie\LaravelPackageTools\Commands\InstallCommand;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -13,11 +18,6 @@ class SteadFastServiceProvider extends PackageServiceProvider
 {
     public function configurePackage(Package $package): void
     {
-        /*
-         * This class is a Package Service Provider
-         *
-         * More info: https://github.com/spatie/laravel-package-tools
-         */
         $package
             ->name('laravel-steadfast')
             ->hasConfigFile()
@@ -34,41 +34,44 @@ class SteadFastServiceProvider extends PackageServiceProvider
                     ->askToRunMigrations()
                     ->askToStarRepoOnGitHub('sabitahmad/laravel-steadfast')
                     ->endWith(function (InstallCommand $command) {
-                        $command->info('🚀 Laravel SteadFast package installed successfully!');
-                        $command->info('');
-                        $command->info('Next steps:');
-                        $command->info('1. Add your API credentials to .env file:');
-                        $command->info('   STEADFAST_API_KEY=your_api_key');
-                        $command->info('   STEADFAST_SECRET_KEY=your_secret_key');
-                        $command->info('');
-                        $command->info('2. Test your configuration:');
-                        $command->info('   php artisan steadfast:test');
-                        $command->info('');
-                        $command->info('3. View usage statistics:');
-                        $command->info('   php artisan steadfast:stats');
-                        $command->info('');
-                        $command->info('Happy shipping! 📦');
+                        $command->info('Laravel SteadFast installed.');
+                        $command->info('Set `STEADFAST_API_KEY` and `STEADFAST_SECRET_KEY`, then run `php artisan steadfast:test`.');
                     });
             });
     }
 
     public function packageRegistered(): void
     {
-        $this->app->singleton(SteadFast::class, function () {
-            return new SteadFast;
+        $this->app->singleton(SteadfastLogger::class, function ($app) {
+            return new SteadfastLogger(
+                logger: $app->make(LoggerInterface::class),
+                config: $app['config']->get('steadfast', []),
+            );
         });
-    }
 
-    public function packageBooted(): void
-    {
-        // Register model pruning if enabled
-        if (config('steadfast.logging.cleanup_logs', true)) {
-            $this->app->booted(function () {
-                $schedule = $this->app->make(\Illuminate\Console\Scheduling\Schedule::class);
-                $schedule->command('model:prune', ['--model' => \SabitAhmad\SteadFast\Models\SteadfastLog::class])
-                    ->daily()
-                    ->when(config('steadfast.logging.enabled', true));
-            });
-        }
+        $this->app->singleton(SteadfastHttpClient::class, function ($app) {
+            return new SteadfastHttpClient(
+                http: $app->make(HttpFactory::class),
+                logger: $app->make(SteadfastLogger::class),
+                config: $app['config']->get('steadfast', []),
+            );
+        });
+
+        $this->app->singleton(SteadfastFraudChecker::class, function ($app) {
+            return new SteadfastFraudChecker(
+                http: $app->make(HttpFactory::class),
+                logger: $app->make(SteadfastLogger::class),
+                fallbackLogger: $app->make(LoggerInterface::class),
+                config: $app['config']->get('steadfast', []),
+            );
+        });
+
+        $this->app->singleton(SteadFast::class, function ($app) {
+            return new SteadFast(
+                httpClient: $app->make(SteadfastHttpClient::class),
+                logger: $app->make(SteadfastLogger::class),
+                fraudChecker: $app->make(SteadfastFraudChecker::class),
+            );
+        });
     }
 }
