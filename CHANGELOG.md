@@ -2,6 +2,14 @@
 
 All notable changes to `laravel-steadfast` will be documented in this file.
 
+## v2.2.1 - 2026-04-10
+
+### What's Changed
+
+* Bump dependabot/fetch-metadata from 2.4.0 to 2.5.0 by @dependabot[bot] in https://github.com/sabitahmadumid/laravel-steadfast/pull/7
+
+**Full Changelog**: https://github.com/sabitahmadumid/laravel-steadfast/compare/v2.1.0...v2.2.1
+
 ## v2.1.0 - 2025-11-30
 
 ### What's Changed
@@ -40,6 +48,7 @@ This is a major release with significant improvements, new features, and breakin
 #### **Enhanced Order Management**
 
 - **Extended Order Fields**: Support for all SteadFast API fields
+  
   - `alternative_phone` - Alternative contact number
   - `recipient_email` - Customer email address
   - `item_description` - Detailed item description
@@ -47,16 +56,20 @@ This is a major release with significant improvements, new features, and breakin
   - `delivery_type` - Home delivery (0) or Point delivery (1)
   
 - **Rich Response Objects**: Type-safe DTOs for all API responses
+  
 - **Enhanced Validation**: Comprehensive validation with custom error messages
+  
 
 #### **Advanced Bulk Processing**
 
 - **Event System**: Complete event-driven architecture
+  
   - `BulkOrderStarted` - Fired when bulk processing begins
   - `BulkOrderCompleted` - Fired when bulk processing completes
   - `BulkOrderFailed` - Fired when bulk processing fails
   
 - **Improved Queue Management**:
+  
   - Unique job IDs to prevent duplicates
   - Exponential backoff retry strategy
   - Job batching support
@@ -86,6 +99,7 @@ This is a major release with significant improvements, new features, and breakin
 #### **Advanced Error Handling**
 
 - **Specific Exception Types**:
+  
   - `AuthenticationError` for credential issues
   - `ValidationError` for input validation failures
   - `RateLimitError` for API rate limiting
@@ -93,7 +107,9 @@ This is a major release with significant improvements, new features, and breakin
   - `ServiceUnavailable` for API downtime
   
 - **Rich Error Context**: Detailed error information for debugging
+  
 - **Retry Logic**: Automatic retry with configurable conditions
+  
 
 #### **Security & Data Protection**
 
