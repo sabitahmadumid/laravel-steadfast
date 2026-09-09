@@ -2,6 +2,21 @@
 
 All notable changes to `laravel-steadfast` will be documented in this file.
 
+## 2.3.0 - 2026-09-09
+
+Support for Laravel 13
+
+### What's Changed
+
+* Bump dependabot/fetch-metadata from 2.5.0 to 3.1.0 by @dependabot[bot] in https://github.com/sabitahmadumid/laravel-steadfast/pull/9
+* feat: add Laravel 13 support by @md-anisujjaman-bd in https://github.com/sabitahmadumid/laravel-steadfast/pull/11
+
+### New Contributors
+
+* @md-anisujjaman-bd made their first contribution in https://github.com/sabitahmadumid/laravel-steadfast/pull/11
+
+**Full Changelog**: https://github.com/sabitahmadumid/laravel-steadfast/compare/v2.2.1...2.3.0
+
 ## v2.2.1 - 2026-04-10
 
 ### What's Changed
