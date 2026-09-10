@@ -92,7 +92,7 @@ class SteadfastHttpClient
                 'Secret-Key' => $this->config['secret_key'],
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
-                'User-Agent' => 'Laravel-SteadFast-Package/2.2.1',
+                'User-Agent' => 'Laravel-SteadFast-Package/2.4.0',
             ])
             ->retry(
                 $this->config['retry']['times'],

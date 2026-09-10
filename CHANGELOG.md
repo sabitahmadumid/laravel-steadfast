@@ -2,6 +2,19 @@
 
 All notable changes to `laravel-steadfast` will be documented in this file.
 
+## v2.4.0 - 2026-09-11
+
+### ✨ What's Changed
+
+- **Payments API Support**: Added `getPayments(?int $page)` and `getPayment(int|string $id)` with new `PaymentResponse` DTO to track merchant disbursements and linked consignments.
+- **Police Stations / Coverage Zones**: Added `getPoliceStations(bool $forceRefresh = false)` with new `PoliceStationResponse` DTO and automatic caching (24h default TTL).
+- **Facade Autocompletion**: Added comprehensive `@method static` PHPDoc annotations to `SteadFast` facade for full IDE autocompletion and type-safety.
+- **Fraud Checker Caching**: Activated `fraud_checker.cache_enabled` to store results under `steadfast:fraud:{phone}` and avoid redundant portal session logins.
+- **Framework Decoupling & Stability**: Replaced global helper functions (`config()`, `now()`, `app()`, `validator()`, `event()`) with native Illuminate Facades (`Config`, `Carbon`, `App`, `Validator`, `Event`).
+- **PHP 8.1+ Return Typing**: Marked `handleException()` as `: never` to prevent false "Not all paths return a value" static analysis errors.
+
+**Full Changelog**: https://github.com/sabitahmadumid/laravel-steadfast/compare/2.3.0...v2.4.0
+
 ## 2.3.0 - 2026-09-09
 
 Support for Laravel 13
