@@ -2,6 +2,7 @@
 
 namespace SabitAhmad\SteadFast\DTO;
 
+use Illuminate\Support\Facades\Validator;
 use SabitAhmad\SteadFast\Exceptions\SteadfastException;
 
 class OrderRequest
@@ -77,7 +78,7 @@ class OrderRequest
             'delivery_type' => 'nullable|integer|in:0,1',
         ];
 
-        $validator = validator($this->toArray(), $rules, [
+        $validator = Validator::make($this->toArray(), $rules, [
             'invoice.regex' => 'Invoice must contain only alphanumeric characters, hyphens, and underscores.',
             'recipient_phone.regex' => 'Phone number must be 11 digits starting with 01.',
             'alternative_phone.regex' => 'Alternative phone number must be 11 digits starting with 01.',

@@ -3,6 +3,7 @@
 namespace SabitAhmad\SteadFast\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Config;
 use SabitAhmad\SteadFast\Exceptions\SteadfastException;
 use SabitAhmad\SteadFast\SteadFast;
 
@@ -30,9 +31,9 @@ class SteadfastTestCommand extends Command
     {
         $this->info("\n1. Configuration Test:");
 
-        $apiKey = config('steadfast.api_key');
-        $secretKey = config('steadfast.secret_key');
-        $baseUrl = config('steadfast.base_url');
+        $apiKey = Config::get('steadfast.api_key');
+        $secretKey = Config::get('steadfast.secret_key');
+        $baseUrl = Config::get('steadfast.base_url');
 
         if (empty($apiKey)) {
             $this->error('   ✗ API Key is missing');
@@ -53,9 +54,9 @@ class SteadfastTestCommand extends Command
         }
 
         // Test other configuration
-        $timeout = config('steadfast.timeout', 30);
-        $bulkQueue = config('steadfast.bulk.queue', true);
-        $logging = config('steadfast.logging.enabled', true);
+        $timeout = Config::get('steadfast.timeout', 30);
+        $bulkQueue = Config::get('steadfast.bulk.queue', true);
+        $logging = Config::get('steadfast.logging.enabled', true);
 
         $this->info("   ✓ Timeout: {$timeout}s");
         $this->info('   ✓ Bulk Queue: '.($bulkQueue ? 'enabled' : 'disabled'));

@@ -8,6 +8,9 @@ use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use SabitAhmad\SteadFast\DTO\BulkOrderResponse;
@@ -55,7 +58,7 @@ class ProcessBulkOrders implements ShouldQueue
         $this->uniqueId = (string) Str::uuid();
 
         // Get configuration values
-        $config = config('steadfast.bulk', []);
+        $config = Config::get('steadfast.bulk', []);
         $this->tries = $config['max_attempts'] ?? 3;
         $this->backoff = $config['backoff_seconds'] ?? 60;
     }
@@ -67,7 +70,7 @@ class ProcessBulkOrders implements ShouldQueue
     {
         $this->logJobStart($logger);
 
-        event(new BulkOrderStarted($this->orders, $this->uniqueId));
+        Event::dispatch(new BulkOrderStarted($this->orders, $this->uniqueId));
 
         try {
             $response = $steadFast->processBulkOrders($this->orders);
@@ -83,7 +86,7 @@ class ProcessBulkOrders implements ShouldQueue
 
             $this->logSuccess($logger, $response);
 
-            event(new BulkOrderCompleted($response, $this->uniqueId));
+            Event::dispatch(new BulkOrderCompleted($response, $this->uniqueId));
 
         } catch (SteadfastException $e) {
             $this->handleSteadfastException($logger, $e);
@@ -116,7 +119,7 @@ class ProcessBulkOrders implements ShouldQueue
     {
         $this->logError($logger, $e);
 
-        event(new BulkOrderFailed($e, $this->orders, $this->uniqueId));
+        Event::dispatch(new BulkOrderFailed($e, $this->orders, $this->uniqueId));
 
         if ($this->attempts() >= $this->tries) {
             $this->fail($e);
@@ -133,7 +136,7 @@ class ProcessBulkOrders implements ShouldQueue
     {
         $this->logError($logger, $e);
 
-        event(new BulkOrderFailed($e, $this->orders, $this->uniqueId));
+        Event::dispatch(new BulkOrderFailed($e, $this->orders, $this->uniqueId));
 
         $this->fail($e);
     }
@@ -173,7 +176,7 @@ class ProcessBulkOrders implements ShouldQueue
             }, $this->orders),
         ]);
 
-        app(SteadfastLogger::class)->log([
+        App::make(SteadfastLogger::class)->log([
             'type' => 'bulk_job_failed',
             'request' => [
                 'order_count' => count($this->orders),
@@ -204,7 +207,7 @@ class ProcessBulkOrders implements ShouldQueue
 
     public static function dispatch(array $orders): mixed
     {
-        return app(Dispatcher::class)->dispatch(new self($orders));
+        return App::make(Dispatcher::class)->dispatch(new self($orders));
     }
 
     private function logSuccess(SteadfastLogger $logger, BulkOrderResponse $response): void
