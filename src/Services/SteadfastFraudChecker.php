@@ -5,6 +5,8 @@ namespace SabitAhmad\SteadFast\Services;
 use Exception;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
 use Psr\Log\LoggerInterface;
 use SabitAhmad\SteadFast\DTO\FraudCheckResponse;
 use SabitAhmad\SteadFast\Exceptions\SteadfastException;
@@ -17,7 +19,7 @@ class SteadfastFraudChecker
         protected LoggerInterface $fallbackLogger,
         protected array $config = []
     ) {
-        $this->config = $config ?: config('steadfast');
+        $this->config = $config ?: (Config::get('steadfast', []));
     }
 
     /**
@@ -30,6 +32,20 @@ class SteadfastFraudChecker
         }
 
         $phoneNumber = $this->validatePhoneNumber($phoneNumber);
+
+        $cacheEnabled = (bool) ($this->config['fraud_checker']['cache_enabled'] ?? true);
+        $cacheTtl = (int) ($this->config['fraud_checker']['cache_ttl'] ?? 3600);
+        $cachePrefix = $this->config['cache']['prefix'] ?? 'steadfast';
+        $cacheKey = "{$cachePrefix}:fraud:{$phoneNumber}";
+
+        if ($cacheEnabled && Cache::has($cacheKey)) {
+            $cached = Cache::get($cacheKey);
+
+            if (is_array($cached)) {
+                return FraudCheckResponse::fromArray($cached);
+            }
+        }
+
         $loginCookies = null;
 
         try {
@@ -79,6 +95,10 @@ class SteadfastFraudChecker
                 'total' => ($fraudData['total_delivered'] ?? 0) + ($fraudData['total_cancelled'] ?? 0),
                 'phone_number' => $phoneNumber,
             ];
+
+            if ($cacheEnabled) {
+                Cache::put($cacheKey, $result, $cacheTtl);
+            }
 
             $this->log($phoneNumber, $result);
 

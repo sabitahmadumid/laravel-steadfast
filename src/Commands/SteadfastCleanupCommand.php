@@ -3,6 +3,8 @@
 namespace SabitAhmad\SteadFast\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Config;
 use SabitAhmad\SteadFast\Models\SteadfastLog;
 
 class SteadfastCleanupCommand extends Command
@@ -13,8 +15,8 @@ class SteadfastCleanupCommand extends Command
 
     public function handle(): void
     {
-        $keepDays = config('steadfast.logging.keep_logs_days', 30);
-        $oldLogsCount = SteadfastLog::where('created_at', '<=', now()->subDays($keepDays))->count();
+        $keepDays = Config::get('steadfast.logging.keep_logs_days', 30);
+        $oldLogsCount = SteadfastLog::where('created_at', '<=', Carbon::now()->subDays($keepDays))->count();
 
         if ($oldLogsCount === 0) {
             $this->info('No old logs found to clean up.');

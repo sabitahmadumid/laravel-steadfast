@@ -5,6 +5,8 @@ namespace SabitAhmad\SteadFast\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Prunable;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Config;
 
 class SteadfastLog extends Model
 {
@@ -26,9 +28,9 @@ class SteadfastLog extends Model
      */
     public function prunable(): Builder
     {
-        $keepDays = config('steadfast.logging.keep_logs_days', 30);
+        $keepDays = Config::get('steadfast.logging.keep_logs_days', 30);
 
-        return static::where('created_at', '<=', now()->subDays($keepDays));
+        return static::where('created_at', '<=', Carbon::now()->subDays($keepDays));
     }
 
     /**
@@ -76,7 +78,7 @@ class SteadfastLog extends Model
      */
     public function scopeRecent(Builder $query, int $hours = 24): Builder
     {
-        return $query->where('created_at', '>=', now()->subHours($hours));
+        return $query->where('created_at', '>=', Carbon::now()->subHours($hours));
     }
 
     /**
@@ -169,8 +171,8 @@ class SteadfastLog extends Model
      */
     public static function cleanup(): int
     {
-        $keepDays = config('steadfast.logging.keep_logs_days', 30);
+        $keepDays = Config::get('steadfast.logging.keep_logs_days', 30);
 
-        return static::where('created_at', '<=', now()->subDays($keepDays))->delete();
+        return static::where('created_at', '<=', Carbon::now()->subDays($keepDays))->delete();
     }
 }

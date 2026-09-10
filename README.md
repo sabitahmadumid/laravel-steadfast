@@ -11,10 +11,12 @@ Laravel integration for the SteadFast Courier API with typed DTOs for orders, tr
 - Track shipments by consignment ID, invoice, or tracking code
 - Create and fetch return requests
 - Check account balance
+- Fetch merchant payments and payment details with consignments
+- Fetch delivery coverage zones / police stations with caching
 - Typed request and response DTOs
 - Queue-backed bulk processing
 - Bulk lifecycle events
-- Configurable caching for balance and status lookups
+- Configurable caching for balance, status, and zone lookups
 - Optional fraud checking through the SteadFast merchant panel
 - Optional request logging and usage statistics
 - Built-in artisan commands for testing, statistics, and cleanup
@@ -195,6 +197,47 @@ ReturnRequest::byTrackingCode('ABC123', 'Wrong item delivered');
 $balance = $steadfast->getBalance();
 
 echo $balance->getFormattedBalance();
+```
+
+### Payments
+
+Fetch merchant payment / disbursement history or inspect an individual payment with all associated consignment orders:
+
+```php
+// Get all payments (supports optional pagination: $steadfast->getPayments(page: 1))
+$payments = $steadfast->getPayments();
+
+foreach ($payments as $payment) {
+    echo "Payment ID: {$payment->id}, Amount: {$payment->amount} BDT, Status: {$payment->status}\n";
+}
+
+// Get single payment with consignments list
+$payment = $steadfast->getPayment(123);
+
+if ($payment->isCompleted()) {
+    echo "Payment of {$payment->amount} BDT was cleared.\n";
+}
+
+// Inspect linked consignments
+foreach ($payment->consignments as $consignment) {
+    echo "Consignment: {$consignment['tracking_code']} - {$consignment['cod_amount']} BDT\n";
+}
+```
+
+### Police Stations (Coverage Zones)
+
+Retrieve the list of police stations / thanas supported by Steadfast Courier. This response is automatically cached to prevent unnecessary network requests:
+
+```php
+// Retrieve police stations (cached automatically)
+$policeStations = $steadfast->getPoliceStations();
+
+foreach ($policeStations as $station) {
+    echo "{$station->name} ({$station->district})\n";
+}
+
+// Force-refresh the cache if needed
+$freshStations = $steadfast->getPoliceStations(forceRefresh: true);
 ```
 
 ## Response Helpers

@@ -3,6 +3,8 @@
 namespace SabitAhmad\SteadFast\Services;
 
 use Exception;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Config;
 use Psr\Log\LoggerInterface;
 use SabitAhmad\SteadFast\Models\SteadfastLog;
 
@@ -12,7 +14,7 @@ class SteadfastLogger
         protected LoggerInterface $logger,
         protected array $config = []
     ) {
-        $this->config = $config ?: config('steadfast');
+        $this->config = $config ?: (Config::get('steadfast', []));
     }
 
     public function enabled(): bool
@@ -45,7 +47,7 @@ class SteadfastLogger
                 'endpoint' => $logData['endpoint'],
                 'status_code' => $logData['status_code'],
                 'error' => $logData['error'] ?? null,
-                'created_at' => now(),
+                'created_at' => Carbon::now(),
             ]);
         } catch (Exception $e) {
             $this->logger->error('Steadfast logging failed: '.$e->getMessage(), [

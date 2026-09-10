@@ -5,6 +5,7 @@ namespace SabitAhmad\SteadFast\Services;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Config;
 use SabitAhmad\SteadFast\Exceptions\SteadfastException;
 use Throwable;
 
@@ -17,7 +18,7 @@ class SteadfastHttpClient
         protected SteadfastLogger $logger,
         protected array $config = []
     ) {
-        $this->config = $config ?: config('steadfast');
+        $this->config = $config ?: (Config::get('steadfast', []));
         $this->client = $this->buildClient();
     }
 

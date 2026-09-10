@@ -5,13 +5,18 @@ namespace SabitAhmad\SteadFast;
 use Exception;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use SabitAhmad\SteadFast\DTO\BalanceResponse;
 use SabitAhmad\SteadFast\DTO\BulkOrderResponse;
 use SabitAhmad\SteadFast\DTO\FraudCheckResponse;
 use SabitAhmad\SteadFast\DTO\OrderRequest;
 use SabitAhmad\SteadFast\DTO\OrderResponse;
+use SabitAhmad\SteadFast\DTO\PaymentResponse;
+use SabitAhmad\SteadFast\DTO\PoliceStationResponse;
 use SabitAhmad\SteadFast\DTO\ReturnRequest;
 use SabitAhmad\SteadFast\DTO\ReturnResponse;
 use SabitAhmad\SteadFast\DTO\StatusResponse;
@@ -41,12 +46,12 @@ class SteadFast
         ?SteadfastLogger $logger = null,
         ?SteadfastFraudChecker $fraudChecker = null
     ) {
-        $this->config = config('steadfast');
+        $this->config = Config::get('steadfast', []);
         $this->validateConfig();
         $this->cache = $this->resolveCacheStore();
-        $this->logger = $logger ?? app(SteadfastLogger::class);
-        $this->httpClient = $httpClient ?? app(SteadfastHttpClient::class);
-        $this->fraudChecker = $fraudChecker ?? app(SteadfastFraudChecker::class);
+        $this->logger = $logger ?? App::make(SteadfastLogger::class);
+        $this->httpClient = $httpClient ?? App::make(SteadfastHttpClient::class);
+        $this->fraudChecker = $fraudChecker ?? App::make(SteadfastFraudChecker::class);
     }
 
     /**
@@ -54,8 +59,9 @@ class SteadFast
      */
     private function validateConfig(): void
     {
-        $apiKey = config('steadfast.api_key');
-        $secretKey = config('steadfast.secret_key');
+        $apiKey = $this->config['api_key'] ?? null;
+        $secretKey = $this->config['secret_key'] ?? null;
+        $baseUrl = $this->config['base_url'] ?? null;
 
         if (empty($apiKey)) {
             throw SteadfastException::invalidConfig('API Key');
@@ -65,7 +71,7 @@ class SteadFast
             throw SteadfastException::invalidConfig('Secret Key');
         }
 
-        if (empty(config('steadfast.base_url'))) {
+        if (empty($baseUrl)) {
             throw SteadfastException::invalidConfig('Base URL');
         }
     }
@@ -265,9 +271,120 @@ class SteadFast
     }
 
     /**
+     * Get merchant payment history
+     *
+     * @return array<int, PaymentResponse>
+     *
      * @throws SteadfastException
      */
-    protected function handleException(Exception $e, array $context = []): void
+    public function getPayments(?int $page = null): array
+    {
+        $endpoint = '/payments';
+        $params = [];
+        if ($page !== null) {
+            $params['page'] = $page;
+            $endpoint .= '?page='.$page;
+        }
+
+        try {
+            $response = $this->httpClient->get($endpoint, 'get_payments', $params);
+            $processedResponse = $this->httpClient->validateResponse($response);
+
+            $items = $processedResponse['data']['data']
+                ?? $processedResponse['data']
+                ?? $processedResponse['payments']
+                ?? $processedResponse;
+
+            if (! is_array($items)) {
+                return [];
+            }
+
+            return array_map(
+                fn ($item) => PaymentResponse::fromArray((array) $item),
+                $items
+            );
+        } catch (Exception $e) {
+            $this->handleException($e, ['endpoint' => '/payments', 'params' => $params]);
+        }
+    }
+
+    /**
+     * Get single payment details with consignments
+     *
+     * @throws SteadfastException
+     */
+    public function getPayment(int|string $paymentId): PaymentResponse
+    {
+        try {
+            $response = $this->httpClient->get("/payments/{$paymentId}", 'get_payment', ['payment_id' => $paymentId]);
+            $processedResponse = $this->httpClient->validateResponse($response);
+
+            $paymentData = $processedResponse['data']
+                ?? $processedResponse['payment']
+                ?? $processedResponse;
+
+            return PaymentResponse::fromArray((array) $paymentData);
+        } catch (Exception $e) {
+            $this->handleException($e, [
+                'payment_id' => $paymentId,
+                'endpoint' => "/payments/{$paymentId}",
+            ]);
+        }
+    }
+
+    /**
+     * Get list of police stations / coverage zones
+     *
+     * @return array<int, PoliceStationResponse>
+     *
+     * @throws SteadfastException
+     */
+    public function getPoliceStations(bool $forceRefresh = false): array
+    {
+        $cacheKey = $this->getCacheKey('police_stations');
+
+        if (! $forceRefresh && $this->config['cache']['enabled'] && $this->cache->has($cacheKey)) {
+            $cached = $this->cache->get($cacheKey);
+
+            if (is_array($cached)) {
+                return array_map(
+                    fn ($item) => PoliceStationResponse::fromArray((array) $item),
+                    $cached
+                );
+            }
+        }
+
+        try {
+            $response = $this->httpClient->get('/police_stations', 'get_police_stations');
+            $processedResponse = $this->httpClient->validateResponse($response);
+
+            $items = $processedResponse['data']
+                ?? $processedResponse['police_stations']
+                ?? $processedResponse;
+
+            if (! is_array($items)) {
+                return [];
+            }
+
+            if ($this->config['cache']['enabled']) {
+                $ttl = max($this->config['cache']['ttl'] ?? 300, 86400);
+                $this->cache->put($cacheKey, $items, $ttl);
+                $this->trackCacheKey($cacheKey);
+            }
+
+            return array_map(
+                fn ($item) => PoliceStationResponse::fromArray((array) $item),
+                $items
+            );
+        } catch (Exception $e) {
+            $this->handleException($e, ['endpoint' => '/police_stations']);
+        }
+    }
+
+    /**
+     * @throws SteadfastException
+     */
+    protected function handleException(Exception $e, array $context = []): never
     {
         $logData = [
             'type' => 'api_error',
@@ -478,7 +595,7 @@ class SteadFast
             return [
                 'status' => 'success',
                 'data' => $response,
-                'processed_at' => now()->toDateTimeString(),
+                'processed_at' => Carbon::now()->toDateTimeString(),
             ];
         }
 
@@ -488,7 +605,7 @@ class SteadFast
         return [
             'status' => 'success',
             'data' => $processed['data'] ?? $processed,
-            'processed_at' => now()->toDateTimeString(),
+            'processed_at' => Carbon::now()->toDateTimeString(),
         ];
     }
 
@@ -590,7 +707,7 @@ class SteadFast
                 'status' => 'success',
                 'message' => 'API connection successful',
                 'balance' => $balance->current_balance,
-                'timestamp' => now()->toDateTimeString(),
+                'timestamp' => Carbon::now()->toDateTimeString(),
             ];
         } catch (Exception $e) {
             throw SteadfastException::connectionError($e);
